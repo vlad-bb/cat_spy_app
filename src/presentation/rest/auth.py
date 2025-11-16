@@ -33,7 +33,7 @@ router = APIRouter(prefix="/auth", tags=["Authorization"])
 get_refresh_token = HTTPBearer()
 
 
-@router.post("/signup")
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(
     body: CatModel,
     cat_repository: CatRepository = Depends(get_cat_repository),
@@ -50,7 +50,7 @@ async def signup(
     exist_cat = await cat_repository.get_by_name(body.name)
     if exist_cat:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Account already exists"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Account already exists"
         )
 
     # Hash the password and create the new cat
