@@ -11,12 +11,11 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.pool import NullPool
 
 from src.main import app 
-from src.config.config import config
 from src.infrastructure.database.session import get_db
-from src.infrastructure.database.models.tables import Base, Cat, Note, Mission, Target, targets_cats, mission_cats
+from src.infrastructure.database.models.tables import Base, Cat
 from src.infrastructure.database.repositories.cats import CatRepository
-from src.infrastructure.database.models.tables import Cat
 from src.application.password_service import password_service
+
 
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
@@ -73,15 +72,19 @@ async def client(db_session: AsyncSession):
 
 
 @pytest_asyncio.fixture
-async def test_cat(client: AsyncClient, mock_breed_validation_success):
+async def test_cat(db_session: AsyncSession, mock_breed_validation_success):
     """Create a test cat user and return the response"""
-    response = await client.post("/api/auth/signup", json={
-        "name": "TestCat",
-        "years_of_experience": 3,
-        "password": "TestPass123!",
-        "breed": "Persian",
-    })
-    return response.json()
+    test_cat = Cat(
+        name="TestCat",
+        years_of_experience=3,
+        breed="Persian",
+    )
+    test_cat.password = password_service.get_password_hash("TestPass123!")
+    
+    db_session.add(test_cat)
+    await db_session.commit()
+    await db_session.refresh(test_cat)
+    return test_cat
 
 
 @pytest_asyncio.fixture
@@ -96,30 +99,32 @@ async def auth_headers(client: AsyncClient, test_cat):
 
 
 @pytest_asyncio.fixture
-async def admin_cat(client: AsyncClient, db_session: AsyncSession):
+async def admin_cat(db_session: AsyncSession, mock_breed_validation_success):
     """Create an admin cat user"""
-    admin = Cat(
+    admin_cat = Cat(
         name="AdminCat",
-        password_hash=password_service("AdminPass123!"),
-        breed="British Shorthair",
         years_of_experience=7,
-        is_stuff=True
+        breed="British Shorthair",
+        is_staff=True,
     )
-    db_session.add(admin)
+    admin_cat.password = password_service.get_password_hash("AdminPass123!")
+    
+    db_session.add(admin_cat)
     await db_session.commit()
-    await db_session.refresh(admin)
-    return admin
+    await db_session.refresh(admin_cat)
+    return admin_cat
 
 
 @pytest_asyncio.fixture
 async def admin_headers(client: AsyncClient, admin_cat):
     """Get admin authentication headers"""
-    response = await client.post("/api/auth/login", json={
-        "email": "admin@cat.com",
+    response = await client.post("/api/auth/login", data={
+        "username": "AdminCat",
         "password": "AdminPass123!"
     })
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
 
 @pytest.fixture
 def mock_breed_validation_success(monkeypatch):
@@ -129,3 +134,43 @@ def mock_breed_validation_success(monkeypatch):
         return True
     
     monkeypatch.setattr(CatRepository, "validate_breed", mock_validate_breed)
+
+
+@pytest_asyncio.fixture
+async def test_mission(client: AsyncClient, db_session: AsyncSession):
+    """Create a mission"""
+    return {
+        "name": "Operation Red Laser",
+        "description": "Investigate suspicious laser pointer activity in warehouse district"
+    }
+
+
+@pytest_asyncio.fixture
+async def test_target(client: AsyncClient, db_session: AsyncSession):
+    """Create a target"""
+    return {
+        "name": "The Red Dot Mastermind", 
+        "country": "Japan"
+    }
+
+
+@pytest_asyncio.fixture
+async def mission_data_factory(test_mission, test_target):
+    """Factory to create mission data with customizations"""
+    def _factory(targets=None, cat_uuids=None, **overrides):
+        base_data = {
+            "name": test_mission["name"],
+            "description": test_mission["description"],
+            "targets": targets or [test_target],
+            "cat_uuids": cat_uuids or []
+        }
+        return {**base_data, **overrides}
+    return _factory
+
+
+@pytest_asyncio.fixture
+async def test_note(client: AsyncClient, db_session: AsyncSession):
+    """Create a note"""
+    return {
+        "content": "Target spotted near the warehouse at 3 AM. Very suspicious."
+    }

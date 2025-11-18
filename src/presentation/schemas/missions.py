@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -8,7 +8,7 @@ from src.presentation.schemas.targets import TargetCreate, TargetResponse
 class MissionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=255)
-    targets: List[TargetCreate] = Field(..., min_items=1, max_items=3)
+    targets: List[TargetCreate] = Field(..., min_length=1, max_length=3)
     cat_uuids: Optional[List[UUID]] = Field(default=None)
     
     @field_validator('name', 'description')
@@ -32,8 +32,7 @@ class MissionResponse(BaseModel):
     targets: List[TargetResponse]
     cat_uuids: List[UUID]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes = True)
 
     @classmethod
     def from_mission(cls, mission):
@@ -59,4 +58,4 @@ class MissionResponse(BaseModel):
         )
 
 class AssignCatsRequest(BaseModel):
-    cat_uuids: list[UUID] = Field(..., min_items=1)
+    cat_uuids: list[UUID] = Field(..., min_length=1)
