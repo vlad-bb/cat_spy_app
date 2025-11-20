@@ -104,11 +104,13 @@ class TestGetCatByName:
     async def test_get_cat_by_name_unauthorized(
         self,
         client: AsyncClient,
-        auth_headers
+        auth_headers,
+        multiple_test_cats
     ):
         """Test that non-admin users cannot perform search"""
         response = await client.get(
             "/api/admin/cats/name",
+            params={"search_query": "TestCat3"},
             headers=auth_headers
         )
         
@@ -117,10 +119,118 @@ class TestGetCatByName:
     async def test_get_cat_by_name_without_auth(
         self,
         client: AsyncClient,
+        multiple_test_cats
     ):
         """Test that unauthenticated requests are rejected"""
         response = await client.get(
             "/api/admin/cats/name",
+            params={"search_query": "TestCat3"},
+        )
+        
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestUpdateCatSalary:
+    """Test suite for updating cat's salary"""
+    async def test_update_cat_salary_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        test_cat
+    ):
+        cat_uuid = test_cat.uuid
+        responce = await client.put(
+            f"/api/admin/cats/update/{cat_uuid}",
+            params={"salary": 10000},
+            headers=admin_headers
+        )
+        assert responce.status_code == 200
+        data = responce.json()
+
+        assert data["salary"] == 10000
+
+    async def test_update_cat_salary_negative_value(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        test_cat
+    ):
+        """Test with negative salary (validation error)"""
+        cat_uuid = test_cat.uuid
+        
+        response = await client.put(
+            f"/api/admin/cats/update/{cat_uuid}",
+            params={"salary": -100},
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 422
+
+    async def test_update_cat_salary_missing_param(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        test_cat
+    ):
+        """Test without salary parameter"""
+        cat_uuid = test_cat.uuid
+        
+        response = await client.put(
+            f"/api/admin/cats/update/{cat_uuid}",
+            headers=admin_headers
+            # No salary parameter
+        )
+        
+        assert response.status_code == 422
+
+    async def test_update_cat_salary_invalid_uuid(
+        self,
+        client: AsyncClient,
+        admin_headers
+    ):
+        """Test with invalid UUID"""
+        cat_uuid = uuid4()
+
+        response = await client.put(
+            f"/api/admin/cats/update/{cat_uuid}",
+            params={"salary": 10000},
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 404
+        data = response.json()
+
+        assert data["detail"] == "Cat not found"
+
+    async def test_update_cat_salary_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        test_cat
+    ):
+        """Test that non-admin users cannot update cat's salary"""
+        cat_uuid = test_cat.uuid
+
+        response = await client.put(
+            f"/api/admin/cats/update/{cat_uuid}",
+            params={"salary": 10000},
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_update_cat_salary_without_auth(
+        self,
+        client: AsyncClient,
+        test_cat
+    ):
+        """Test that unauthenticated requests are rejected"""
+        cat_uuid = test_cat.uuid
+
+        response = await client.put(
+            f"/api/admin/cats/update/{cat_uuid}",
+            params={"salary": 10000},
         )
         
         assert response.status_code == 401

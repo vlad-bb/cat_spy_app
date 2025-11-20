@@ -15,6 +15,7 @@ from src.infrastructure.database.session import get_db
 from src.infrastructure.database.models.tables import Base, Cat
 from src.infrastructure.database.repositories.cats import CatRepository
 from src.application.password_service import password_service
+from uuid import uuid4
 
 
 
@@ -75,6 +76,7 @@ async def client(db_session: AsyncSession):
 async def test_cat(db_session: AsyncSession, mock_breed_validation_success):
     """Create a test cat user and return the response"""
     test_cat = Cat(
+        uuid=uuid4(),
         name="TestCat",
         years_of_experience=3,
         breed="Persian",
