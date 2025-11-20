@@ -298,6 +298,67 @@ class TestDeleteCatByUuid:
 
 
 @pytest.mark.asyncio
+class TestGetCatByUuid:
+    """Test suite for getting cat by uuid"""
+    async def test_get_cat_by_uuid_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        test_cat
+    ):
+        cat_uuid = test_cat.uuid
+        response = await client.get(
+            f"/api/admin/cats/{cat_uuid}",
+            headers=admin_headers
+        )
+
+        assert response.status_code == 200
+
+    async def test_get_cat_by_uuid_not_found(
+        self,
+        client: AsyncClient,
+        admin_headers
+    ):
+        cat_uuid = uuid4()
+        response = await client.get(
+            f"/api/admin/cats/{cat_uuid}",
+            headers=admin_headers
+        )
+
+        assert response.status_code == 404
+
+    async def test_get_cat_by_uuid_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        test_cat
+    ):
+        """Test that non-admin users cannot get cat by uuid"""
+        cat_uuid = test_cat.uuid
+
+        response = await client.get(
+            f"/api/admin/cats/{cat_uuid}",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_get_cat_by_uuid_without_auth(
+        self,
+        client: AsyncClient,
+        test_cat
+    ):
+        """Test that unauthenticated requests are rejected"""
+        cat_uuid = test_cat.uuid
+
+        response = await client.get(
+            f"/api/admin/cats/{cat_uuid}",
+        )
+        
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
 class TestCreateMission:
     """Test suite for mission creation endpoint"""
     async def test_create_mission_success(
