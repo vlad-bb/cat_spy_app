@@ -88,6 +88,34 @@ async def test_cat(db_session: AsyncSession, mock_breed_validation_success):
 
 
 @pytest_asyncio.fixture
+async def multiple_test_cats(db_session: AsyncSession, mock_breed_validation_success):
+    """Create multiple test cats"""
+    cats_data = [
+        {"name": "TestCat1", "years_of_experience": 3, "breed": "Persian"},
+        {"name": "TestCat2", "years_of_experience": 2, "breed": "Siamese"},
+        {"name": "TestCat3", "years_of_experience": 5, "breed": "Maine Coon"}
+    ]
+    
+    test_cats = []
+    for cat_data in cats_data:
+        cat = Cat(
+            name=cat_data["name"],
+            years_of_experience=cat_data["years_of_experience"],
+            breed=cat_data["breed"],
+        )
+        cat.password = password_service.get_password_hash("TestPass123!")
+        db_session.add(cat)
+        test_cats.append(cat)
+    
+    await db_session.commit()
+    
+    for cat in test_cats:
+        await db_session.refresh(cat)
+    
+    return test_cats
+
+
+@pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient, test_cat):
     """Get authentication headers with valid JWT token"""
     response = await client.post("/api/auth/login", data={
@@ -127,7 +155,7 @@ async def admin_headers(client: AsyncClient, admin_cat):
 
 
 @pytest.fixture
-def mock_breed_validation_success(monkeypatch):
+def mock_breed_validation_success(monkeypatch: pytest.MonkeyPatch):
     """Mock successful breed validation"""
     
     async def mock_validate_breed(self, breed_name):
@@ -157,7 +185,7 @@ async def test_target(client: AsyncClient, db_session: AsyncSession):
 @pytest_asyncio.fixture
 async def mission_data_factory(test_mission, test_target):
     """Factory to create mission data with customizations"""
-    def _factory(targets=None, cat_uuids=None, **overrides):
+    def _factory(targets: list = None, cat_uuids: list = None, **overrides):
         base_data = {
             "name": test_mission["name"],
             "description": test_mission["description"],

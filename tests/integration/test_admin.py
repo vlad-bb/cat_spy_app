@@ -4,11 +4,133 @@ from uuid import uuid4
 
 
 @pytest.mark.asyncio
+class TestGetAllCats:
+    """Test suite for extracting all cats"""
+    async def test_get_all_cats_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        multiple_test_cats
+    ):
+        response = await client.get(
+            "/api/admin/cats",
+            headers=admin_headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify response structure
+        assert data[0]["name"] == "AdminCat"
+        assert data[1]["name"] == "TestCat1"
+        assert data[2]["breed"] == "Siamese"
+        assert data[3]["years_of_experience"] == 5
+        assert len(data) == 4
+
+    async def test_get_all_cats_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers
+    ):
+        """Test that non-admin users cannot extract all cats"""
+        response = await client.get(
+            "/api/admin/cats",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_get_all_cats_without_auth(
+        self,
+        client: AsyncClient,
+    ):
+        """Test that unauthenticated requests are rejected"""
+        response = await client.get(
+            "/api/admin/cats",
+        )
+        
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestGetCatByName:
+    """Test suite for extracting cat by its name"""
+    async def test_get_cat_by_name_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        multiple_test_cats
+    ):
+        responce = await client.get(
+            "/api/admin/cats/name",
+            params={"search_query": "TestCat3"},
+            headers=admin_headers
+        )
+        assert responce.status_code == 200
+        data = responce.json()
+
+        assert data[0]["breed"] == "Maine Coon"
+
+    async def test_get_cat_by_name_partial_name(
+        self, 
+        client: AsyncClient,
+        admin_headers,
+        multiple_test_cats
+    ):
+        responce = await client.get(
+            "/api/admin/cats/name",
+            params={"search_query": "est"},
+            headers=admin_headers
+        )
+        assert responce.status_code == 200
+        data = responce.json()
+
+        assert len(data) == 3
+        assert data[0]["name"] == "TestCat1"
+
+    async def test_get_cat_by_name_not_found(
+        self,
+        client: AsyncClient,
+        admin_headers
+    ):
+        response = await client.get(
+            "/api/admin/cats/name",
+            params={"search_query": "NonExistentCat"},
+            headers=admin_headers
+        )
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Cat not found"
+
+    async def test_get_cat_by_name_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers
+    ):
+        """Test that non-admin users cannot perform search"""
+        response = await client.get(
+            "/api/admin/cats/name",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_get_cat_by_name_without_auth(
+        self,
+        client: AsyncClient,
+    ):
+        """Test that unauthenticated requests are rejected"""
+        response = await client.get(
+            "/api/admin/cats/name",
+        )
+        
+        assert response.status_code == 401
+
+@pytest.mark.asyncio
 class TestCreateMission:
     """Test suite for mission creation endpoint"""
     async def test_create_mission_success(
         self,
-        client,
+        client: AsyncClient,
         admin_headers,
         mission_data_factory
     ):
@@ -18,7 +140,6 @@ class TestCreateMission:
             json=mission_data,
             headers=admin_headers
         )
-        print(type(response))
         assert response.status_code == 201
         data = response.json()
         
