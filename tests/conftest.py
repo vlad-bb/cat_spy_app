@@ -14,6 +14,8 @@ from src.main import app
 from src.infrastructure.database.session import get_db
 from src.infrastructure.database.models.tables import Base, Cat
 from src.infrastructure.database.repositories.cats import CatRepository
+from src.infrastructure.database.repositories.missions import MissionRepository
+from src.presentation.schemas.missions import MissionCreate
 from src.application.password_service import password_service
 from uuid import uuid4
 
@@ -185,7 +187,7 @@ async def test_target(client: AsyncClient, db_session: AsyncSession):
 
 
 @pytest_asyncio.fixture
-async def mission_data_factory(test_mission, test_target):
+async def mission_factory(test_mission, test_target):
     """Factory to create mission data with customizations"""
     def _factory(targets: list = None, cat_uuids: list = None, **overrides):
         base_data = {
@@ -195,6 +197,30 @@ async def mission_data_factory(test_mission, test_target):
             "cat_uuids": cat_uuids or []
         }
         return {**base_data, **overrides}
+    return _factory
+
+
+@pytest_asyncio.fixture
+async def mission_db_factory(db_session: AsyncSession, mission_factory):
+    """Factory to create and save mission entities to test database"""
+    async def _factory(**kwargs):
+        # Generate unique mission names
+        if 'name' not in kwargs:
+            kwargs['name'] = f"Test Mission {uuid4().hex[:8]}"
+
+        # Use the existing factory to generate mission data
+        mission_data = mission_factory(**kwargs)
+        
+        # Convert to MissionCreate schema
+        mission_create = MissionCreate(**mission_data)
+        
+        # Use repository to create and save mission
+        repository = MissionRepository(db_session)
+        mission = await repository.create(mission_create)
+        
+        print(f"Created mission in DB: {mission.name} (UUID: {mission.uuid})", flush=True)
+        return mission
+    
     return _factory
 
 

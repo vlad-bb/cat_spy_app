@@ -365,9 +365,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
         response = await client.post(
             "/api/admin/mission/create",
             json=mission_data,
@@ -375,6 +375,7 @@ class TestCreateMission:
         )
         assert response.status_code == 201
         data = response.json()
+        print("Test data:", data)
         
         # Verify response structure
         assert "uuid" in data
@@ -391,7 +392,7 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory,
+        mission_factory,
     ):
         targets = [
             {
@@ -407,7 +408,7 @@ class TestCreateMission:
                 "country": "Japan"
             }
         ]
-        mission_data = mission_data_factory(targets=targets)
+        mission_data = mission_factory(targets=targets)
 
         """Test creating mission with 3 targets (maximum allowed)"""
         response = await client.post(
@@ -429,9 +430,9 @@ class TestCreateMission:
         client: AsyncClient,
         admin_headers,
         test_cat,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory(cat_uuids=[str(test_cat.uuid)])
+        mission_data = mission_factory(cat_uuids=[str(test_cat.uuid)])
 
         """Test creating mission with assigned cats"""
         response = await client.post(
@@ -450,9 +451,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         auth_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test that non-admin users cannot create missions"""
         response = await client.post(
@@ -466,9 +467,9 @@ class TestCreateMission:
     async def test_create_mission_without_auth(
         self,
         client: AsyncClient,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test that unauthenticated requests are rejected"""
         response = await client.post(
@@ -482,9 +483,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test validation fails with empty name"""
         invalid_data = mission_data.copy()
@@ -502,9 +503,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test validation fails with name exceeding 100 characters"""
         invalid_data = mission_data.copy()
@@ -522,9 +523,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test validation fails with description exceeding 255 characters"""
         invalid_data = mission_data.copy()
@@ -542,9 +543,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test validation fails with no targets"""
         invalid_data = mission_data.copy()
@@ -562,9 +563,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test validation fails with more than 3 targets"""
         invalid_data = mission_data.copy()
@@ -585,9 +586,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test that whitespace is stripped from name and description"""
         data_with_whitespace = mission_data.copy()
@@ -610,9 +611,9 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_data_factory
+        mission_factory
     ):
-        mission_data = mission_data_factory()
+        mission_data = mission_factory()
 
         """Test creating mission with non-existent cat UUID"""
         invalid_data = mission_data.copy()
@@ -626,4 +627,32 @@ class TestCreateMission:
         
         # Depending on your implementation, this might be 404 or 422
         assert response.status_code in [404, 422]
-    
+
+
+@pytest.mark.asyncio
+class TestGetAllMissions:
+    async def test_get_all_missions(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory
+    ):
+        print("=== CREATING MISSIONS IN DATABASE ===", flush=True)
+        
+        # Create missions in the database
+        await mission_db_factory()
+        await mission_db_factory()
+        await mission_db_factory()
+        
+        print("=== FETCHING MISSIONS FROM API ===", flush=True)
+        response = await client.get(
+            "/api/admin/missions",
+            headers=admin_headers
+        )
+        
+        print(f"Response status: {response.status_code}", flush=True)
+        data = response.json()
+        print(f"Retrieved {len(data)} missions", flush=True)
+        
+        assert response.status_code == 200
+        assert len(data) == 3
