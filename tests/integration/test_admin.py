@@ -375,7 +375,6 @@ class TestCreateMission:
         )
         assert response.status_code == 201
         data = response.json()
-        print("Test data:", data)
         
         # Verify response structure
         assert "uuid" in data
@@ -637,22 +636,140 @@ class TestGetAllMissions:
         admin_headers,
         mission_db_factory
     ):
-        print("=== CREATING MISSIONS IN DATABASE ===", flush=True)
-        
         # Create missions in the database
         await mission_db_factory()
         await mission_db_factory()
         await mission_db_factory()
         
-        print("=== FETCHING MISSIONS FROM API ===", flush=True)
         response = await client.get(
             "/api/admin/missions",
             headers=admin_headers
         )
-        
-        print(f"Response status: {response.status_code}", flush=True)
-        data = response.json()
-        print(f"Retrieved {len(data)} missions", flush=True)
-        
         assert response.status_code == 200
+        data = response.json()
+        
         assert len(data) == 3
+
+    async def test_get_all_missions_empty_result(
+        self,
+        client: AsyncClient,
+        admin_headers
+    ):
+        responce = await client.get(
+            "/api/admin/missions",
+            headers=admin_headers
+        )
+
+        assert responce.status_code == 200
+        data = responce.json()
+
+        assert len(data) == 0
+
+    async def test_get_all_missions_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        mission_db_factory
+    ):
+        """Test that non-admin users cannot get all missions"""
+        # Create missions in the database
+        await mission_db_factory()
+        await mission_db_factory()
+        await mission_db_factory()
+
+        response = await client.get(
+            "/api/admin/missions",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_get_all_missions_without_auth(
+        self,
+        client: AsyncClient,
+        mission_db_factory
+    ):
+        """Test that unauthenticated requests are rejected"""
+                # Create missions in the database
+        await mission_db_factory()
+        await mission_db_factory()
+        await mission_db_factory()
+
+        response = await client.get(
+            "/api/admin/missions",
+        )
+        
+        assert response.status_code == 401
+    
+
+@pytest.mark.asyncio
+class TestGetMissionByUuid:
+    async def test_get_mission_by_uuid_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory
+    ):
+        mission = await mission_db_factory()      
+        mission_uuid = mission.uuid
+
+        responce = await client.get(
+            f"/api/admin/mission/{mission_uuid}",
+            headers=admin_headers
+        )
+
+        assert responce.status_code == 200
+        data = responce.json()
+
+        assert data["uuid"] == str(mission_uuid)
+
+    async def test_get_mission_by_uuid_not_found(
+        self,
+        client: AsyncClient,
+        admin_headers
+    ):
+        mission_uuid = str(uuid4())
+
+        responce = await client.get(
+            f"/api/admin/mission/{mission_uuid}",
+            headers=admin_headers
+        )
+
+        assert responce.status_code == 404
+        data = responce.json()
+
+        assert data["detail"] == "Mission not found"
+
+    async def test_get_mission_by_uuid_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        mission_db_factory
+    ):
+        """Test that non-admin users cannot get mission by uuid"""
+        # Create mission in the database
+        mission = await mission_db_factory()
+        mission_uuid = mission.uuid
+
+        response = await client.get(
+            f"/api/admin/mission/{mission_uuid}",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_get_mission_by_uuid_without_auth(
+        self,
+        client: AsyncClient,
+        mission_db_factory
+    ):
+        """Test that unauthenticated requests are rejected"""
+        # Create mission in the database
+        mission = await mission_db_factory()
+        mission_uuid = mission.uuid
+
+        response = await client.get(
+            f"/api/admin/mission/{mission_uuid}",
+        )
+        
+        assert response.status_code == 401
