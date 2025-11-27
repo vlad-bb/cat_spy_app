@@ -60,13 +60,13 @@ class TestGetCatByName:
         admin_headers,
         multiple_test_cats
     ):
-        responce = await client.get(
+        response = await client.get(
             "/api/admin/cats/name",
             params={"search_query": "TestCat3"},
             headers=admin_headers
         )
-        assert responce.status_code == 200
-        data = responce.json()
+        assert response.status_code == 200
+        data = response.json()
 
         assert data[0]["breed"] == "Maine Coon"
 
@@ -76,13 +76,13 @@ class TestGetCatByName:
         admin_headers,
         multiple_test_cats
     ):
-        responce = await client.get(
+        response = await client.get(
             "/api/admin/cats/name",
             params={"search_query": "est"},
             headers=admin_headers
         )
-        assert responce.status_code == 200
-        data = responce.json()
+        assert response.status_code == 200
+        data = response.json()
 
         assert len(data) == 3
         assert data[0]["name"] == "TestCat1"
@@ -140,13 +140,13 @@ class TestUpdateCatSalary:
         test_cat
     ):
         cat_uuid = test_cat.uuid
-        responce = await client.put(
+        response = await client.put(
             f"/api/admin/cats/update/{cat_uuid}",
             params={"salary": 10000},
             headers=admin_headers
         )
-        assert responce.status_code == 200
-        data = responce.json()
+        assert response.status_code == 200
+        data = response.json()
 
         assert data["salary"] == 10000
 
@@ -655,13 +655,13 @@ class TestGetAllMissions:
         client: AsyncClient,
         admin_headers
     ):
-        responce = await client.get(
+        response = await client.get(
             "/api/admin/missions",
             headers=admin_headers
         )
 
-        assert responce.status_code == 200
-        data = responce.json()
+        assert response.status_code == 200
+        data = response.json()
 
         assert len(data) == 0
 
@@ -713,13 +713,13 @@ class TestGetMissionByUuid:
         mission = await mission_db_factory()      
         mission_uuid = mission.uuid
 
-        responce = await client.get(
+        response = await client.get(
             f"/api/admin/mission/{mission_uuid}",
             headers=admin_headers
         )
 
-        assert responce.status_code == 200
-        data = responce.json()
+        assert response.status_code == 200
+        data = response.json()
 
         assert data["uuid"] == str(mission_uuid)
 
@@ -730,13 +730,13 @@ class TestGetMissionByUuid:
     ):
         mission_uuid = str(uuid4())
 
-        responce = await client.get(
+        response = await client.get(
             f"/api/admin/mission/{mission_uuid}",
             headers=admin_headers
         )
 
-        assert responce.status_code == 404
-        data = responce.json()
+        assert response.status_code == 404
+        data = response.json()
 
         assert data["detail"] == "Mission not found"
 
@@ -770,6 +770,118 @@ class TestGetMissionByUuid:
 
         response = await client.get(
             f"/api/admin/mission/{mission_uuid}",
+        )
+        
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestDeleteMissionByUuid:
+    async def test_delete_mission_by_uuid_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory,
+        db_session
+    ):
+        mission1 = await mission_db_factory()
+        mission2 = await mission_db_factory()
+        mission_uuid = mission1.uuid
+        
+        response = await client.delete(
+            f"/api/admin/mission/delete/{mission_uuid}",
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 204
+        
+        from src.infrastructure.database.models.tables import Mission
+        from sqlalchemy import select
+        
+        # Check mission1 is deleted
+        result = await db_session.execute(
+            select(Mission).where(Mission.uuid == mission1.uuid)
+        )
+        assert result.scalar_one_or_none() is None
+        
+        # Check mission2 still exists
+        result = await db_session.execute(
+            select(Mission).where(Mission.uuid == mission2.uuid)
+        )
+        assert result.scalar_one_or_none() is not None
+        
+        # Check total count
+        result = await db_session.execute(select(Mission))
+        all_missions = result.scalars().all()
+        assert len(all_missions) == 1
+
+    async def test_delete_mission_by_uuid_not_found(
+        self,
+        client: AsyncClient,
+        admin_headers,
+    ):
+        mission_uuid = str(uuid4())
+        
+        response = await client.delete(
+            f"/api/admin/mission/delete/{mission_uuid}",
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 404
+        data = response.json()
+
+        assert data["detail"] == "Mission not found"
+    
+    async def test_delete_mission_by_uuid_with_cat(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory,
+        test_cat
+    ):
+        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
+        mission_uuid = mission.uuid
+        
+        response = await client.delete(
+            f"/api/admin/mission/delete/{mission_uuid}",
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 400
+        data = response.json()
+
+        assert data["detail"] == "Cannot delete mission assigned to cats"
+
+    async def test_delete_mission_by_uuid_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        mission_db_factory
+    ):
+        """Test that non-admin users cannot delete mission by uuid"""
+        # Create mission in the database
+        mission = await mission_db_factory()
+        mission_uuid = mission.uuid
+
+        response = await client.delete(
+            f"/api/admin/mission/delete/{mission_uuid}",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_delete_mission_by_uuid_without_auth(
+        self,
+        client: AsyncClient,
+        mission_db_factory
+    ):
+        """Test that unauthenticated requests are rejected"""
+        # Create mission in the database
+        mission = await mission_db_factory()
+        mission_uuid = mission.uuid
+
+        response = await client.delete(
+            f"/api/admin/mission/delete/{mission_uuid}",
         )
         
         assert response.status_code == 401
