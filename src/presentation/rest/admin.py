@@ -106,19 +106,6 @@ async def get_all_missions(
     missions = await mission_repository.get_all_missions()
     return [MissionResponse.from_mission(mission) for mission in missions]
 
-@router.get("/mission/{mission_uuid}", response_model=MissionResponse)
-async def get_mission_by_uuid(
-    mission_uuid: UUID,
-    mission_repository: MissionRepository = Depends(get_mission_repository),
-    current_cat: Cat = Depends(get_current_admin),
-):
-    """Get a mission by its UUID. Admin access required."""
-    mission = await mission_repository.get_by_uuid(mission_uuid)
-    if not mission:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found"
-        )
-    return MissionResponse.from_mission(mission)
 
 @router.delete("/mission/delete/{mission_uuid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mission_by_uuid(
@@ -134,7 +121,7 @@ async def delete_mission_by_uuid(
         )
     await mission_repository.delete_mission_by_uuid(mission_uuid)
 
-@router.put("/mission/complete/{mission_uuid}", response_model=MissionResponse)
+@router.put("/mission/{mission_uuid}/complete", response_model=MissionResponse)
 async def complete_mission_by_uuid(
     mission_uuid: UUID,
     mission_repository: MissionRepository = Depends(get_mission_repository),
@@ -144,7 +131,7 @@ async def complete_mission_by_uuid(
     mission = await mission_repository.set_completed_mission(mission_uuid)
     return MissionResponse.from_mission(mission)
 
-@router.put("/mission/assign/{mission_uuid}", response_model=MissionResponse)
+@router.put("/mission/{mission_uuid}/assign", response_model=MissionResponse)
 async def assign_cats_to_mission(
     mission_uuid: UUID,
     request: AssignCatsRequest,
@@ -152,10 +139,20 @@ async def assign_cats_to_mission(
     current_cat: Cat = Depends(get_current_admin),
 ):
     """Assign cats to a mission. Admin access required."""
-    if not request.cat_uuids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="cat_uuids query parameter is required and cannot be empty"
-        )
     mission = await mission_repository.assign_cats_to_mission(mission_uuid, request.cat_uuids)
+    return MissionResponse.from_mission(mission)
+
+
+@router.get("/mission/{mission_uuid}", response_model=MissionResponse)
+async def get_mission_by_uuid(
+    mission_uuid: UUID,
+    mission_repository: MissionRepository = Depends(get_mission_repository),
+    current_cat: Cat = Depends(get_current_admin),
+):
+    """Get a mission by its UUID. Admin access required."""
+    mission = await mission_repository.get_by_uuid(mission_uuid)
+    if not mission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Mission not found"
+        )
     return MissionResponse.from_mission(mission)

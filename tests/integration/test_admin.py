@@ -1,7 +1,7 @@
 import pytest
 from httpx import AsyncClient
 from uuid import uuid4
-
+from src.domain.entities.mission import MissionStatus
 
 @pytest.mark.asyncio
 class TestGetAllCats:
@@ -882,6 +882,196 @@ class TestDeleteMissionByUuid:
 
         response = await client.delete(
             f"/api/admin/mission/delete/{mission_uuid}",
+        )
+        
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestCompleteMissionByUuid:
+    async def test_complete_mission_by_uuid_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory,
+        test_cat
+    ):
+        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/complete",
+            headers=admin_headers
+        )
+
+        assert response.status_code == 200
+        
+        data = response.json()
+
+        assert data["uuid"] == str(mission.uuid)
+        assert data["name"] == mission.name
+        assert data["status"] == "completed"
+
+    async def test_complete_mission_by_uuid_not_found(
+        self,
+        client: AsyncClient,
+        admin_headers
+    ):
+        mission_uuid = str(uuid4())
+        
+        response = await client.put(
+            f"/api/admin/mission/{mission_uuid}/complete",
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 404
+        data = response.json()
+
+        assert data["detail"] == "Mission not found"
+
+    async def test_complete_mission_by_uuid_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        mission_db_factory,
+        test_cat
+    ):
+        """Test that non-admin users cannot complete mission by uuid"""
+        # Create mission in the database
+        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
+
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/complete",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_complete_mission_by_uuid_without_auth(
+        self,
+        client: AsyncClient,
+        mission_db_factory,
+        test_cat
+    ):
+        """Test that unauthenticated requests are rejected"""
+        # Create mission in the database
+        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
+
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/complete",
+        )
+        
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestAssignCatsToMission:
+    async def test_assign_cats_to_mission_success(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory,
+        multiple_test_cats
+    ):
+        cat_uuids = [str(cat.uuid) for cat in multiple_test_cats]
+        mission = await mission_db_factory()
+
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/assign",
+            json={"cat_uuids": cat_uuids},
+            headers=admin_headers
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["cat_uuids"][0] in cat_uuids
+
+    async def test_assign_cats_to_mission_not_found(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory,
+        multiple_test_cats
+    ):
+        cat_uuids = [str(cat.uuid) for cat in multiple_test_cats]
+        mission_uuid = str(uuid4())
+        
+        response = await client.put(
+            f"/api/admin/mission/{mission_uuid}/assign",
+            json={"cat_uuids": cat_uuids},
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 404
+        data = response.json()
+
+        assert data["detail"] == "Mission not found"
+
+    async def test_assign_cats_to_mission_empty_parameter(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory
+    ):
+        mission = await mission_db_factory()
+
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/assign",
+            headers=admin_headers
+        )
+
+        assert response.status_code == 422
+
+    async def test_assign_cats_to_mission_cat_not_found(
+        self,
+        client: AsyncClient,
+        admin_headers,
+        mission_db_factory
+    ):
+        cat_uuids = [str(uuid4())]
+        mission = await mission_db_factory()
+
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/assign",
+            json={"cat_uuids": cat_uuids},
+            headers=admin_headers
+        )
+
+        assert response.status_code == 404
+
+    async def test_assign_cats_to_mission_unauthorized(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        mission_db_factory,
+        multiple_test_cats
+    ):
+        """Test that non-admin users cannot assign mission by uuid"""
+        # Create mission in the database
+        cat_uuids = [str(cat.uuid) for cat in multiple_test_cats]
+        mission = await mission_db_factory()
+
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/assign",
+            json={"cat_uuids": cat_uuids},
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 403
+    
+    async def test_assign_cats_to_mission_without_auth(
+        self,
+        client: AsyncClient,
+        mission_db_factory,
+        multiple_test_cats
+    ):
+        """Test that unauthenticated requests are rejected"""
+        # Create mission in the database
+        cat_uuids = [str(cat.uuid) for cat in multiple_test_cats]
+        mission = await mission_db_factory()
+
+        response = await client.put(
+            f"/api/admin/mission/{mission.uuid}/assign",
+            json={"cat_uuids": cat_uuids}
         )
         
         assert response.status_code == 401

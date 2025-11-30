@@ -146,8 +146,8 @@ class MissionRepository:
         mission.updated_at = domain_mission.updated_at
         mission.completed_at = domain_mission.completed_at
         await self.db.commit()
-        await self.db.refresh(mission)
-        return mission
+        return await self.get_by_uuid(mission_uuid)
+
 
     async def assign_cats_to_mission(self, mission_uuid: UUID, cat_uuids: List[UUID]) -> Mission:
         mission = await self.get_by_uuid(mission_uuid)
@@ -179,8 +179,7 @@ class MissionRepository:
         mission.cat.extend(cats)
         mission.status = MissionStatus.IN_PROGRESS.value
         await self.db.commit()
-        await self.db.refresh(mission)
-        return mission
+        return await self.get_by_uuid(mission_uuid)
 
     async def set_completed_target(self, target_uuid: UUID) -> Target:
         result = await self.db.execute(
