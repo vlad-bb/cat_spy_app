@@ -12,7 +12,7 @@ from sqlalchemy.pool import NullPool
 
 from src.main import app 
 from src.infrastructure.database.session import get_db
-from src.infrastructure.database.models.tables import Base, Cat
+from src.infrastructure.database.models.tables import Base, Cat, Target
 from src.infrastructure.database.repositories.cats import CatRepository
 from src.infrastructure.database.repositories.missions import MissionRepository
 from src.presentation.schemas.missions import MissionCreate
@@ -120,17 +120,6 @@ async def multiple_test_cats(db_session: AsyncSession, mock_breed_validation_suc
 
 
 @pytest_asyncio.fixture
-async def auth_headers(client: AsyncClient, test_cat):
-    """Get authentication headers with valid JWT token"""
-    response = await client.post("/api/auth/login", data={
-        "username": "TestCat",
-        "password": "TestPass123!"
-    })
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest_asyncio.fixture
 async def admin_cat(db_session: AsyncSession, mock_breed_validation_success):
     """Create an admin cat user"""
     admin_cat = Cat(
@@ -148,14 +137,28 @@ async def admin_cat(db_session: AsyncSession, mock_breed_validation_success):
 
 
 @pytest_asyncio.fixture
-async def admin_headers(client: AsyncClient, admin_cat):
+async def auth_headers_factory(client: AsyncClient):
+    """Factory fixture to create auth headers for any user"""
+    async def _create_headers(username, password):
+        response = await client.post("/api/auth/login", data={
+            "username": username,
+            "password": password
+        })
+        token = response.json()["access_token"]
+        return {"Authorization": f"Bearer {token}"}
+    return _create_headers
+
+
+@pytest_asyncio.fixture
+async def auth_headers(client: AsyncClient, test_cat, auth_headers_factory):
+    """Get authentication headers for the main test cat"""
+    return await auth_headers_factory("TestCat", "TestPass123!")
+
+
+@pytest_asyncio.fixture
+async def admin_headers(client: AsyncClient, admin_cat, auth_headers_factory):
     """Get admin authentication headers"""
-    response = await client.post("/api/auth/login", data={
-        "username": "AdminCat",
-        "password": "AdminPass123!"
-    })
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return await auth_headers_factory("AdminCat", "AdminPass123!")
 
 
 @pytest.fixture
@@ -220,6 +223,36 @@ async def mission_db_factory(db_session: AsyncSession, mission_factory):
         
         print(f"Created mission in DB: {mission.name} (UUID: {mission.uuid})", flush=True)
         return mission
+    
+    return _factory
+
+
+@pytest_asyncio.fixture
+async def target_db_factory(db_session: AsyncSession, test_target, mission_db_factory):
+    """Factory to create and save target entities to test database"""
+    async def _factory(mission=None, **kwargs):
+        # Create a mission if not provided (Target requires a mission)
+        if mission is None:
+            mission = await mission_db_factory()
+        
+        # Generate unique target name if not provided
+        if 'name' not in kwargs:
+            kwargs['name'] = test_target["name"]
+        if 'country' not in kwargs:
+            kwargs['country'] = test_target["country"]
+        
+        # Create target with mission_uuid
+        target = Target(
+            uuid=uuid4(),
+            mission_uuid=mission.uuid,
+            **kwargs
+        )
+        
+        db_session.add(target)
+        await db_session.commit()
+        await db_session.refresh(target)
+        
+        return target
     
     return _factory
 

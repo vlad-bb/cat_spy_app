@@ -38,7 +38,7 @@ class MissionRepository:
                     detail=f"Cats not found: {missing_uuids}"
                 )
             # Check if any cat is already assigned to a mission
-            cats_with_missions = []
+            cats_with_missions = [] #TODO add missions status check (must be in_progress)
             for cat in cats:
                 # Check if cat has any missions assigned
                 mission_check = await self.db.execute(
@@ -175,6 +175,22 @@ class MissionRepository:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Cats not found: {missing_uuids}"
             )
+
+        # Check if any cat is already assigned to a mission
+        cats_with_missions = [] #TODO add missions status check (must be in_progress)
+        for cat in cats:
+            # Check if cat has any missions assigned
+            mission_check = await self.db.execute(
+                select(mission_cats).where(mission_cats.c.cat_uuid == cat.uuid)
+            )
+            if mission_check.first():
+                cats_with_missions.append(cat.uuid)
+
+        if cats_with_missions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cats with UUID {cats_with_missions[0]} are already assigned to missions. Each cat can only have one mission."
+            )             
         
         mission.cat.extend(cats)
         mission.status = MissionStatus.IN_PROGRESS.value

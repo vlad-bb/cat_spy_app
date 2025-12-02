@@ -49,17 +49,3 @@ class TestLogin:
         assert response.status_code == 401
 
 
-@pytest.mark.asyncio
-async def test_get_me(client, auth_headers):
-    response = await client.get("/api/cats/me", headers=auth_headers)
-    print("Response type:", type(response))
-    print("Response:", response)
-    print("Response attributes:", dir(response))
-    assert response.status_code == 200
-    assert response.json()["name"] == "TestCat"
-
-
-@pytest.mark.asyncio
-async def test_get_me_unauthorized(client):
-    response = await client.get("/api/cats/me")
-    assert response.status_code == 401

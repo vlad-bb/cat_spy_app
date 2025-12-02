@@ -39,13 +39,14 @@ async def get_my_cat(
     )
     return my_cat
 
-@router.put("/target/{target_uuid}/assign", status_code=status.HTTP_200_OK)
+@router.put("/target/{target_uuid}/assign", response_model=TargetResponse, status_code=status.HTTP_200_OK)
 async def assign_cat_to_target(
     target_uuid: UUID,
     target_repository: TargetRepository = Depends(get_target_repository),
     current_cat: Cat = Depends(get_current_cat),
 ):
-    await target_repository.assign_cat_to_target(target_uuid, current_cat.uuid)
+    target = await target_repository.assign_cat_to_target(target_uuid, current_cat.uuid)
+    return target
 
 @router.get("/target/{target_uuid}", response_model=TargetResponse)
 async def get_target_by_uuid(
