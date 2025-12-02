@@ -6,6 +6,8 @@ from uuid import UUID
 from src.domain.entities.target import TargetStatus
 from src.domain.entities.mission import MissionStatus
 from src.infrastructure.database.models.tables import Target, Mission, mission_cats, targets_cats, Cat
+from src.infrastructure.database.repositories.missions import MissionRepository
+# from src.presentation.dependencies import get_mission_repository
 
 
 class TargetRepository:
@@ -13,11 +15,20 @@ class TargetRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def assign_cat_to_target(self, target_uuid: UUID, cat_uuid: UUID) -> None:
+    async def assign_cat_to_target(self, target_uuid: UUID, cat_uuid: UUID) -> Target:
         result = await self.db.execute(
             select(Target).where(Target.uuid == target_uuid)
         )
         target = result.scalar_one_or_none()
+
+        mission_repository = MissionRepository(self.db)
+        cat_missions = await mission_repository.get_all_missions_for_cat(cat_uuid=cat_uuid)
+        cat_missions_uuids = [m.uuid for m in cat_missions]
+        if target.mission_uuid not in cat_missions_uuids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot assign cat to target: cat is not assigned to the target's mission."
+            )
 
         if not target:
             raise HTTPException(

@@ -145,3 +145,21 @@ class TestAssignCatToTarget:
         )
         
         assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestGetTurgetByUuid:
+    async def test_get_target_by_uuid_seccess(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        target_db_factory
+    ):
+        target = await target_db_factory()
+
+        response = await client.get(
+            f"/api/cats/target/{target.uuid}",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 200

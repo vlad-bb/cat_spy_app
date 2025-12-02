@@ -38,11 +38,16 @@ class MissionRepository:
                     detail=f"Cats not found: {missing_uuids}"
                 )
             # Check if any cat is already assigned to a mission
-            cats_with_missions = [] #TODO add missions status check (must be in_progress)
+            cats_with_missions = []
             for cat in cats:
                 # Check if cat has any missions assigned
                 mission_check = await self.db.execute(
-                    select(mission_cats).where(mission_cats.c.cat_uuid == cat.uuid)
+                    select(mission_cats)
+                    .join(Mission, mission_cats.c.mission_uuid == Mission.uuid)
+                    .where(
+                        (mission_cats.c.cat_uuid == cat.uuid) &
+                        (Mission.status == MissionStatus.IN_PROGRESS.value)
+                    )
                 )
                 if mission_check.first():
                     cats_with_missions.append(cat.uuid)
@@ -177,12 +182,18 @@ class MissionRepository:
             )
 
         # Check if any cat is already assigned to a mission
-        cats_with_missions = [] #TODO add missions status check (must be in_progress)
+        cats_with_missions = []
         for cat in cats:
             # Check if cat has any missions assigned
             mission_check = await self.db.execute(
-                select(mission_cats).where(mission_cats.c.cat_uuid == cat.uuid)
+                select(mission_cats)
+                .join(Mission, mission_cats.c.mission_uuid == Mission.uuid)
+                .where(
+                    (mission_cats.c.cat_uuid == cat.uuid) &
+                    (Mission.status == MissionStatus.IN_PROGRESS.value)
+                )
             )
+
             if mission_check.first():
                 cats_with_missions.append(cat.uuid)
 
@@ -211,3 +222,23 @@ class MissionRepository:
         await self.db.commit()
         await self.db.refresh(target)
         return target
+
+    async def get_all_missions_for_cat(self, cat_uuid: UUID) -> list[Mission]:
+        result = await self.db.execute(
+            select(Mission)
+            .join(mission_cats, Mission.uuid == mission_cats.c.mission_uuid)
+            .where(mission_cats.c.cat_uuid == cat_uuid)
+            .options(
+                selectinload(Mission.mission_target),
+                selectinload(Mission.cat)
+            )
+        )
+
+        missions = result.scalars().all()
+
+        if not missions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No missions found for this cat"
+            )
+        return missions
