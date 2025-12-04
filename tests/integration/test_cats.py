@@ -36,15 +36,20 @@ class TestAssignCatToTarget:
     async def test_assign_cat_to_target_success(
         self,
         client: AsyncClient,
-        auth_headers,
-        target_db_factory
+        auth_headers_factory,
+        cat_factory,
+        mission_db_factory,
+        target_db_factory,
     ):
         """Test successful assignment of authenticated cat to a target"""
-        target = await target_db_factory()
+        cat, password = await cat_factory()
+        auth_cat = await auth_headers_factory(cat.name, password)
+        mission = await mission_db_factory(cat_uuids=[cat.uuid])
+        target = await target_db_factory(mission)
 
         response = await client.put(
             f"/api/cats/target/{target.uuid}/assign",
-            headers=auth_headers
+            headers=auth_cat
         )
         
         assert response.status_code == 200
@@ -69,15 +74,20 @@ class TestAssignCatToTarget:
     async def test_assign_multiple_cats_to_same_target(
         self,
         client: AsyncClient,
+        cat_factory,
         auth_headers_factory,
-        multiple_test_cats,
-        target_db_factory
+        mission_db_factory,
+        target_db_factory,
+        db_session
     ):
         """Test that multiple different cats can be assigned to the same target"""
-        target = await target_db_factory()
-        
+        cat1, password1 = await cat_factory(name="TestCat1")
+        cat2, password2 = await cat_factory(name="TestCat2")
+        mission = await mission_db_factory(cat_uuids=[cat1.uuid, cat2.uuid])
+        target = await target_db_factory(mission)
+
         # Assign first cat
-        headers1 = await auth_headers_factory("TestCat1", "TestPass123!")
+        headers1 = await auth_headers_factory(cat1.name, password1)
         response1 = await client.put(
             f"/api/cats/target/{target.uuid}/assign",
             headers=headers1
@@ -85,7 +95,7 @@ class TestAssignCatToTarget:
         assert response1.status_code == 200
         
         # Assign second cat to same target
-        headers2 = await auth_headers_factory("TestCat2", "TestPass123!")
+        headers2 = await auth_headers_factory(cat2.name, password2)
         response2 = await client.put(
             f"/api/cats/target/{target.uuid}/assign",
             headers=headers2
@@ -95,14 +105,20 @@ class TestAssignCatToTarget:
     async def test_assign_cat_to_multiple_targets(
         self,
         client: AsyncClient,
-        auth_headers,
+        cat_factory,
+        auth_headers_factory,
+        mission_db_factory,
         target_db_factory
     ):
         """Test that one cat can be assigned to multiple different targets"""
-        # Create two targets
-        target1 = await target_db_factory(name="Target Alpha")
-        target2 = await target_db_factory(name="Target Beta", country="USA")
+        cat, password = await cat_factory()
+        mission = await mission_db_factory(cat_uuids=[cat.uuid])
         
+        # Create two targets
+        target1 = await target_db_factory(mission=mission, name="Target Alpha")
+        target2 = await target_db_factory(mission=mission, name="Target Beta", country="USA")
+        
+        auth_headers = await auth_headers_factory(cat.name, password)
         # Assign same cat to first target
         response1 = await client.put(
             f"/api/cats/target/{target1.uuid}/assign",
@@ -120,11 +136,17 @@ class TestAssignCatToTarget:
     async def test_assign_cat_to_completed_target(
         self,
         client: AsyncClient,
-        auth_headers,
+        cat_factory,
+        auth_headers_factory,
+        mission_db_factory,
         target_db_factory
     ):
         """Test assigning a cat to a target with COMPLETED status"""
-        target = await target_db_factory(status="completed")
+        cat, password = await cat_factory()
+        mission = await mission_db_factory(cat_uuids=[cat.uuid])
+
+        target = await target_db_factory(mission=mission, status="completed")
+        auth_headers = await auth_headers_factory(cat.name, password)
         
         response = await client.put(
             f"/api/cats/target/{target.uuid}/assign",
@@ -149,17 +171,16 @@ class TestAssignCatToTarget:
 
 @pytest.mark.asyncio
 class TestGetTurgetByUuid:
-    async def test_get_target_by_uuid_seccess(
+    async def test_get_target_by_uuid_success(
         self,
         client: AsyncClient,
-        auth_headers,
-        target_db_factory
+        cat_mission_target_factory
     ):
-        target = await target_db_factory()
+        setup = await cat_mission_target_factory(assign_to_target=True)
 
         response = await client.get(
-            f"/api/cats/target/{target.uuid}",
-            headers=auth_headers
+            f"/api/cats/target/{setup['target'].uuid}",
+            headers=setup["headers"]
         )
 
         assert response.status_code == 200

@@ -12,7 +12,7 @@ from sqlalchemy.pool import NullPool
 
 from src.main import app 
 from src.infrastructure.database.session import get_db
-from src.infrastructure.database.models.tables import Base, Cat, Target
+from src.infrastructure.database.models.tables import Base, Cat, Target, targets_cats
 from src.infrastructure.database.repositories.cats import CatRepository
 from src.infrastructure.database.repositories.missions import MissionRepository
 from src.presentation.schemas.missions import MissionCreate
@@ -75,20 +75,41 @@ async def client(db_session: AsyncSession):
 
 
 @pytest_asyncio.fixture
-async def test_cat(db_session: AsyncSession, mock_breed_validation_success):
-    """Create a test cat user and return the response"""
-    test_cat = Cat(
-        uuid=uuid4(),
-        name="TestCat",
-        years_of_experience=3,
-        breed="Persian",
-    )
-    test_cat.password = password_service.get_password_hash("TestPass123!")
+async def cat_factory(db_session: AsyncSession, mock_breed_validation_success):
+    """Factory to create and save cat users to test database."""
+    async def _factory(**kwargs):
+        # Default values
+        defaults = {
+            "name": "TestCat",
+            "years_of_experience": 3,
+            "breed": "Maine Coon",
+        }
+
+        # Update defaults with provided kwargs
+        for key, value in defaults.items():
+            if key not in kwargs:
+                kwargs[key] = value
+
+        # Extract password
+        password = kwargs.pop("password", "TestPass123!")
+
+        # Create cat
+        cat = Cat(
+            uuid=uuid4(),
+            **kwargs
+        )
+
+        # Set password hash
+        cat.password = password_service.get_password_hash(password)
+
+        db_session.add(cat)
+        await db_session.commit()
+        await db_session.refresh(cat)
+
+        # Return both cat and plain password
+        return cat, password
     
-    db_session.add(test_cat)
-    await db_session.commit()
-    await db_session.refresh(test_cat)
-    return test_cat
+    return _factory
 
 
 @pytest_asyncio.fixture
@@ -120,23 +141,6 @@ async def multiple_test_cats(db_session: AsyncSession, mock_breed_validation_suc
 
 
 @pytest_asyncio.fixture
-async def admin_cat(db_session: AsyncSession, mock_breed_validation_success):
-    """Create an admin cat user"""
-    admin_cat = Cat(
-        name="AdminCat",
-        years_of_experience=7,
-        breed="British Shorthair",
-        is_staff=True,
-    )
-    admin_cat.password = password_service.get_password_hash("AdminPass123!")
-    
-    db_session.add(admin_cat)
-    await db_session.commit()
-    await db_session.refresh(admin_cat)
-    return admin_cat
-
-
-@pytest_asyncio.fixture
 async def auth_headers_factory(client: AsyncClient):
     """Factory fixture to create auth headers for any user"""
     async def _create_headers(username, password):
@@ -149,16 +153,35 @@ async def auth_headers_factory(client: AsyncClient):
     return _create_headers
 
 
+# Basic authenticated user
 @pytest_asyncio.fixture
-async def auth_headers(client: AsyncClient, test_cat, auth_headers_factory):
-    """Get authentication headers for the main test cat"""
-    return await auth_headers_factory("TestCat", "TestPass123!")
+async def auth_headers(client: AsyncClient, cat_factory, auth_headers_factory):
+    """Auth headers for a regular cat user"""
+    cat, password = await cat_factory()
+    return await auth_headers_factory(cat.name, password)
 
-
+# Admin authenticated user
 @pytest_asyncio.fixture
-async def admin_headers(client: AsyncClient, admin_cat, auth_headers_factory):
-    """Get admin authentication headers"""
-    return await auth_headers_factory("AdminCat", "AdminPass123!")
+async def admin_headers(client: AsyncClient, cat_factory, auth_headers_factory):
+    """Auth headers for an admin cat user"""
+    cat, password = await cat_factory(
+        name="AdminCat",
+        is_staff=True,
+        password="AdminPass123!"
+    )
+    return await auth_headers_factory(cat.name, password)
+
+# Customizable auth factory
+@pytest_asyncio.fixture
+async def auth_headers_with_cat(client: AsyncClient, cat_factory, auth_headers_factory):
+    """Create auth headers with custom cat parameters"""
+    async def _factory(**cat_kwargs):
+        cat, password = await cat_factory(**cat_kwargs)
+        # Get password from kwargs or use default
+        # password = cat_kwargs.get("password", "TestPass123!")
+        return await auth_headers_factory(cat.name, password)
+    
+    return _factory
 
 
 @pytest.fixture
@@ -216,12 +239,11 @@ async def mission_db_factory(db_session: AsyncSession, mission_factory):
         
         # Convert to MissionCreate schema
         mission_create = MissionCreate(**mission_data)
-        
+
         # Use repository to create and save mission
         repository = MissionRepository(db_session)
         mission = await repository.create(mission_create)
         
-        print(f"Created mission in DB: {mission.name} (UUID: {mission.uuid})", flush=True)
         return mission
     
     return _factory
@@ -253,6 +275,62 @@ async def target_db_factory(db_session: AsyncSession, test_target, mission_db_fa
         await db_session.refresh(target)
         
         return target
+    
+    return _factory
+
+
+@pytest_asyncio.fixture
+async def cat_mission_target_factory(cat_factory, mission_db_factory, target_db_factory, auth_headers_factory, db_session):
+    """Create a complete setup: cat, mission with cat assigned, target, and auth headers"""
+    async def _factory(assign_to_target=False,**kwargs):
+        # Extract custom parameters with defaults
+        cat_kwargs = kwargs.get('cat_kwargs', {})
+        mission_kwargs = kwargs.get('mission_kwargs', {})
+        target_kwargs = kwargs.get('target_kwargs', {})
+        
+        # 1. Create cat
+        cat, password = await cat_factory(**cat_kwargs)
+        
+        # 2. Create mission with this cat assigned
+        mission = await mission_db_factory(
+            cat_uuids=[cat.uuid],
+            **mission_kwargs
+        )
+        
+        # 3. Create target for this mission
+        target = await target_db_factory(
+            mission=mission,
+            **target_kwargs
+        )
+        # 4. Optionally assign cat to target
+        if assign_to_target:
+            await db_session.execute(
+            targets_cats.insert().values(
+                target_uuid=target.uuid,
+                cat_uuid=cat.uuid
+            )
+        )
+        
+            await db_session.commit()
+        
+        # Refresh relationships
+        await db_session.refresh(target, ['cats'])
+        
+        # 5. Create auth headers for the cat
+        headers = await auth_headers_factory(cat.name, password)
+        
+        return {
+            'cat': cat,
+            'password': password,
+            'mission': mission,
+            'target': target,
+            'headers': headers,
+            'db_data': {
+                'cat_uuid': cat.uuid,
+                'mission_uuid': mission.uuid,
+                'target_uuid': target.uuid
+            }
+        }
     
     return _factory
 
