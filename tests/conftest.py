@@ -171,18 +171,6 @@ async def admin_headers(client: AsyncClient, cat_factory, auth_headers_factory):
     )
     return await auth_headers_factory(cat.name, password)
 
-# Customizable auth factory
-@pytest_asyncio.fixture
-async def auth_headers_with_cat(client: AsyncClient, cat_factory, auth_headers_factory):
-    """Create auth headers with custom cat parameters"""
-    async def _factory(**cat_kwargs):
-        cat, password = await cat_factory(**cat_kwargs)
-        # Get password from kwargs or use default
-        # password = cat_kwargs.get("password", "TestPass123!")
-        return await auth_headers_factory(cat.name, password)
-    
-    return _factory
-
 
 @pytest.fixture
 def mock_breed_validation_success(monkeypatch: pytest.MonkeyPatch):
@@ -244,6 +232,10 @@ async def mission_db_factory(db_session: AsyncSession, mission_factory):
         repository = MissionRepository(db_session)
         mission = await repository.create(mission_create)
         
+        db_session.add(mission)
+        await db_session.commit()
+        await db_session.refresh(mission)
+
         return mission
     
     return _factory

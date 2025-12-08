@@ -31,25 +31,58 @@ class TestGetMyCat:
 
 
 @pytest.mark.asyncio
+class TestGetAllMissionsForCat:
+    async def test_get_all_missions_for_cat_success(
+        self,
+        client: AsyncClient,
+        cat_mission_target_factory
+    ):
+        test_data = await cat_mission_target_factory()
+
+        response = await client.get(
+            "/api/cats/missions",
+            headers=test_data["headers"]
+        )
+
+        assert response.status_code == 200
+
+    async def test_get_all_missions_for_cat_mission_not_found(
+        self,
+        client: AsyncClient,
+        auth_headers
+    ):
+        response = await client.get(
+            "/api/cats/missions",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+
+    async def test_get_all_missions_for_cat_without_auth(
+        self,
+        client: AsyncClient,
+    ):
+        response = await client.get(
+            "/api/cats/missions",
+        )
+
+        assert response.status_code == 401
+
+@pytest.mark.asyncio
 class TestAssignCatToTarget:
     
     async def test_assign_cat_to_target_success(
         self,
         client: AsyncClient,
-        auth_headers_factory,
-        cat_factory,
-        mission_db_factory,
-        target_db_factory,
+        cat_mission_target_factory,
     ):
         """Test successful assignment of authenticated cat to a target"""
-        cat, password = await cat_factory()
-        auth_cat = await auth_headers_factory(cat.name, password)
-        mission = await mission_db_factory(cat_uuids=[cat.uuid])
-        target = await target_db_factory(mission)
+        setup = await cat_mission_target_factory()
+        target_uuid = setup['db_data']['target_uuid']
 
         response = await client.put(
-            f"/api/cats/target/{target.uuid}/assign",
-            headers=auth_cat
+            f"/api/cats/target/{target_uuid}/assign",
+            headers=setup["headers"]
         )
         
         assert response.status_code == 200
@@ -184,3 +217,6 @@ class TestGetTurgetByUuid:
         )
 
         assert response.status_code == 200
+
+
+
