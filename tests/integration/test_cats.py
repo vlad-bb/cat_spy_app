@@ -209,14 +209,59 @@ class TestGetTurgetByUuid:
         client: AsyncClient,
         cat_mission_target_factory
     ):
-        setup = await cat_mission_target_factory(assign_to_target=True)
+        test_data = await cat_mission_target_factory(assign_to_target=True)
 
         response = await client.get(
-            f"/api/cats/target/{setup['target'].uuid}",
-            headers=setup["headers"]
+            f"/api/cats/target/{test_data['target'].uuid}",
+            headers=test_data["headers"]
         )
 
         assert response.status_code == 200
 
+    async def test_get_target_by_uuid_does_not_belong(
+        self,
+        client: AsyncClient,
+        target_db_factory,
+        auth_headers
+    ):
+        target = await target_db_factory()
+
+        response = await client.get(
+            f"/api/cats/target/{target.uuid}",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data["detail"] == "Target does not belong to this cat"
+
+    async def test_get_target_by_uuid_does_not_exist(
+        self,
+        client: AsyncClient,
+        auth_headers
+    ):
+        target_uuid = str(uuid4())
+
+        response = await client.get(
+            f"/api/cats/target/{target_uuid}",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Target not found"
+
+    async def test_get_target_by_uuid_without_auth(
+        self,
+        client: AsyncClient,
+        target_db_factory
+    ):
+        target = await target_db_factory()
+
+        response = await client.get(
+            f"/api/cats/target/{target.uuid}",
+        )
+
+        assert response.status_code == 401
 
 
