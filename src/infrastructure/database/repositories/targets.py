@@ -97,12 +97,15 @@ class TargetRepository:
             .join(targets_cats, Target.uuid == targets_cats.c.target_uuid)
             .where(targets_cats.c.cat_uuid == cat_uuid)
         )
-        if not result:
+        targets = result.scalars().all()
+
+        if not targets:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No targets found for this cat"
             )
-        return result.scalars().all()
+
+        return targets
 
     async def set_completed_target(self, target_uuid: UUID, current_cat: Cat) -> Target:
         target_result = await self.db.execute(

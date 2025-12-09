@@ -265,3 +265,98 @@ class TestGetTurgetByUuid:
         assert response.status_code == 401
 
 
+@pytest.mark.asyncio
+class TestGetMyTurgets:
+    async def test_get_my_targets_success(
+        self,
+        client: AsyncClient,
+        cat_mission_target_factory,
+        target_db_factory
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True)
+        mission = test_data["mission"]
+        cat = test_data["cat"]
+        await target_db_factory(mission=mission, assign_to_target=True, cat=cat)
+        
+        response = await client.get(
+            "/api/cats/targets",
+            headers=test_data["headers"]
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+
+    async def test_get_my_targets_not_found(
+        self,
+        client: AsyncClient,
+        auth_headers
+    ):
+        response = await client.get(
+            "/api/cats/targets",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "No targets found for this cat"
+
+    async def test_get_my_targets_without_auth(
+        self,
+        client: AsyncClient,
+        cat_mission_target_factory,
+    ):
+        await cat_mission_target_factory(assign_to_target=True)
+        
+        response = await client.get(
+            "/api/cats/targets",
+        )
+
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestCompleteTurget:
+    async def test_complete_target_success(
+        self,
+        client: AsyncClient,
+        cat_mission_target_factory
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True)
+        
+        response = await client.put(
+            f"/api/cats/target/complete/{test_data['db_data']['target_uuid']}",
+            headers=test_data["headers"]
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+
+    async def test_complete_target_not_found(
+        self,
+        client: AsyncClient,
+        auth_headers
+    ):
+        target_uuid = str(uuid4())
+        response = await client.put(
+            f"/api/cats/target/complete/{target_uuid}",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Target not found"
+
+    async def test_complete_target_without_auth(
+        self,
+        client: AsyncClient,
+        cat_mission_target_factory,
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True)
+        
+        response = await client.put(
+            f"/api/cats/target/complete/{test_data['db_data']['target_uuid']}",
+        )
+
+        assert response.status_code == 401

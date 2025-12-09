@@ -244,7 +244,7 @@ async def mission_db_factory(db_session: AsyncSession, mission_factory):
 @pytest_asyncio.fixture
 async def target_db_factory(db_session: AsyncSession, test_target, mission_db_factory):
     """Factory to create and save target entities to test database"""
-    async def _factory(mission=None, **kwargs):
+    async def _factory(mission=None, assign_to_target=False, cat=None, **kwargs):
         # Create a mission if not provided (Target requires a mission)
         if mission is None:
             mission = await mission_db_factory()
@@ -261,6 +261,16 @@ async def target_db_factory(db_session: AsyncSession, test_target, mission_db_fa
             mission_uuid=mission.uuid,
             **kwargs
         )
+
+        if assign_to_target and cat:
+            await db_session.execute(
+            targets_cats.insert().values(
+                target_uuid=target.uuid,
+                cat_uuid=cat.uuid
+            )
+        )
+        
+            await db_session.commit()
         
         db_session.add(target)
         await db_session.commit()
