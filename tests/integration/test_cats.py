@@ -360,3 +360,80 @@ class TestCompleteTurget:
         )
 
         assert response.status_code == 401
+
+@pytest.mark.asyncio
+class TestCreateNoteForTarget:
+    async def test_create_note_for_target_success(
+        self, 
+        client: AsyncClient, 
+        cat_mission_target_factory,
+        test_note
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True)
+        target = test_data["target"]
+        headers = test_data["headers"]
+        
+        # Act: create note
+        response = await client.post(
+            f"/api/cats/target-note/{target.uuid}",
+            json={"content": test_note["content"]},
+            headers=headers
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        
+        assert data["content"] == test_note["content"]
+        assert data["target_uuid"] == str(target.uuid)
+
+    async def test_create_note_target_not_found(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        test_note
+    ):
+        target_uuid = str(uuid4())
+
+        response = await client.post(
+            f"/api/cats/target-note/{target_uuid}",
+            json={"content": test_note["content"]},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Target not found"
+
+    async def test_create_note_for_target_cat_forbidden(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        test_note,
+        cat_mission_target_factory
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True)
+        target = test_data["target"]
+
+        response = await client.post(
+            f"/api/cats/target-note/{target.uuid}",
+            json={"content": test_note["content"]},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data["detail"] == "Cat is not assigned to the mission of this target"
+
+    async def test_create_note_for_target_without_auth(
+        self,
+        client: AsyncClient,
+        cat_mission_target_factory,
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True)
+        target = test_data["target"]
+        
+        response = await client.post(
+            f"/api/cats/target-note/{target.uuid}",
+        )
+
+        assert response.status_code == 401
