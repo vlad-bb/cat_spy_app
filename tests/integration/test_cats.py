@@ -111,7 +111,6 @@ class TestAssignCatToTarget:
         auth_headers_factory,
         mission_db_factory,
         target_db_factory,
-        db_session
     ):
         """Test that multiple different cats can be assigned to the same target"""
         cat1, password1 = await cat_factory(name="TestCat1")
@@ -434,6 +433,50 @@ class TestCreateNoteForTarget:
         
         response = await client.post(
             f"/api/cats/target-note/{target.uuid}",
+        )
+
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestGetNotes:
+    async def test_get_notes_success(
+        self, 
+        client: AsyncClient, 
+        cat_mission_target_factory
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True, create_note=True)
+        headers = test_data["headers"]
+        
+        # Act: create note
+        response = await client.get(
+            "/api/cats/notes",
+            headers=headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+    async def test_get_notes_not_found(
+            self,
+            client: AsyncClient,
+            auth_headers
+    ):
+        response = await client.get(
+            "/api/cats/notes",
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "No notes found for this cat"
+
+    async def test_get_notes_without_auth(
+            self,
+            client: AsyncClient
+    ):
+        response = await client.get(
+            "/api/cats/notes"
         )
 
         assert response.status_code == 401

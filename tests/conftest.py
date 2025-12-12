@@ -12,7 +12,7 @@ from sqlalchemy.pool import NullPool
 
 from src.main import app 
 from src.infrastructure.database.session import get_db
-from src.infrastructure.database.models.tables import Base, Cat, Target, targets_cats
+from src.infrastructure.database.models.tables import Base, Cat, Target, Note, targets_cats
 from src.infrastructure.database.repositories.cats import CatRepository
 from src.infrastructure.database.repositories.missions import MissionRepository
 from src.presentation.schemas.missions import MissionCreate
@@ -282,13 +282,45 @@ async def target_db_factory(db_session: AsyncSession, test_target, mission_db_fa
 
 
 @pytest_asyncio.fixture
-async def cat_mission_target_factory(cat_factory, mission_db_factory, target_db_factory, auth_headers_factory, db_session):
+async def test_note(client: AsyncClient, db_session: AsyncSession):
+    """Create a note"""
+    return {
+        "content": "Target spotted near the warehouse at 3 AM. Very suspicious."
+    }
+
+
+@pytest_asyncio.fixture
+async def note_db_factory(db_session: AsyncSession, test_note):
+    """Factory to create and save note entities to test database"""
+    async def _factory(cat_uuid, target_uuid, **kwargs):
+        if "content" not in kwargs:
+            kwargs["content"] = test_note["content"]
+
+        note = Note(
+            uuid=uuid4(),
+            target_uuid=target_uuid,
+            cat_uuid=cat_uuid,
+            **kwargs
+        )
+        
+        db_session.add(note)
+        await db_session.commit()
+        await db_session.refresh(note)
+        
+        return note
+    
+    return _factory
+
+
+@pytest_asyncio.fixture
+async def cat_mission_target_factory(cat_factory, mission_db_factory, target_db_factory, note_db_factory, auth_headers_factory, db_session):
     """Create a complete setup: cat, mission with cat assigned, target, and auth headers"""
-    async def _factory(assign_to_target=False,**kwargs):
+    async def _factory(assign_to_target=False, create_note=False, **kwargs):
         # Extract custom parameters with defaults
-        cat_kwargs = kwargs.get('cat_kwargs', {})
-        mission_kwargs = kwargs.get('mission_kwargs', {})
-        target_kwargs = kwargs.get('target_kwargs', {})
+        cat_kwargs = kwargs.get("cat_kwargs", {})
+        mission_kwargs = kwargs.get("mission_kwargs", {})
+        target_kwargs = kwargs.get("target_kwargs", {})
+        note_kwargs = kwargs.get("note_kwargs", {})
         
         # 1. Create cat
         cat, password = await cat_factory(**cat_kwargs)
@@ -317,29 +349,38 @@ async def cat_mission_target_factory(cat_factory, mission_db_factory, target_db_
         
         # Refresh relationships
         await db_session.refresh(target, ['cats'])
+
+         # 5. Optionally create note for the target
+        note = None
+        if create_note:
+            # Default note content if not provided
+            note_content = note_kwargs.get('content', 'Test note content')
+            note = await note_db_factory(
+                target_uuid=target.uuid,
+                cat_uuid=cat.uuid,
+                content=note_content
+            )
         
-        # 5. Create auth headers for the cat
+        # 6. Create auth headers for the cat
         headers = await auth_headers_factory(cat.name, password)
         
         return {
-            'cat': cat,
-            'password': password,
-            'mission': mission,
-            'target': target,
-            'headers': headers,
-            'db_data': {
-                'cat_uuid': cat.uuid,
-                'mission_uuid': mission.uuid,
-                'target_uuid': target.uuid
+            "cat": cat,
+            "password": password,
+            "mission": mission,
+            "target": target,
+            "headers": headers,
+            "note": note,
+            "db_data": {
+                "cat_uuid": cat.uuid,
+                "mission_uuid": mission.uuid,
+                "target_uuid": target.uuid
             }
         }
     
     return _factory
 
 
-@pytest_asyncio.fixture
-async def test_note(client: AsyncClient, db_session: AsyncSession):
-    """Create a note"""
-    return {
-        "content": "Target spotted near the warehouse at 3 AM. Very suspicious."
-    }
+
+
+
