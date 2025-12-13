@@ -1,7 +1,7 @@
 import pytest
 from httpx import AsyncClient
 from uuid import uuid4
-from src.domain.entities.mission import MissionStatus
+
 
 @pytest.mark.asyncio
 class TestGetAllCats:
@@ -137,11 +137,12 @@ class TestUpdateCatSalary:
         self,
         client: AsyncClient,
         admin_headers,
-        test_cat
+        cat_factory
     ):
-        cat_uuid = test_cat.uuid
+        cat, password = await cat_factory()
+
         response = await client.put(
-            f"/api/admin/cats/update/{cat_uuid}",
+            f"/api/admin/cats/update/{cat.uuid}",
             params={"salary": 10000},
             headers=admin_headers
         )
@@ -154,13 +155,13 @@ class TestUpdateCatSalary:
         self,
         client: AsyncClient,
         admin_headers,
-        test_cat
+        cat_factory
     ):
         """Test with negative salary (validation error)"""
-        cat_uuid = test_cat.uuid
+        cat, password = await cat_factory()
         
         response = await client.put(
-            f"/api/admin/cats/update/{cat_uuid}",
+            f"/api/admin/cats/update/{cat.uuid}",
             params={"salary": -100},
             headers=admin_headers
         )
@@ -171,13 +172,13 @@ class TestUpdateCatSalary:
         self,
         client: AsyncClient,
         admin_headers,
-        test_cat
+        cat_factory
     ):
         """Test without salary parameter"""
-        cat_uuid = test_cat.uuid
+        cat, password = await cat_factory()
         
         response = await client.put(
-            f"/api/admin/cats/update/{cat_uuid}",
+            f"/api/admin/cats/update/{cat.uuid}",
             headers=admin_headers
             # No salary parameter
         )
@@ -206,16 +207,21 @@ class TestUpdateCatSalary:
     async def test_update_cat_salary_unauthorized(
         self,
         client: AsyncClient,
-        auth_headers,
-        test_cat
+        cat_factory,
+        auth_headers_factory
     ):
         """Test that non-admin users cannot update cat's salary"""
-        cat_uuid = test_cat.uuid
+        cat_to_update, _ = await cat_factory()
+        other_cat, other_cat_password = await cat_factory(
+            name="OtherCat",
+            password="TestPassOther123!"
+        )
+        other_cat_headers = await auth_headers_factory(other_cat.name, other_cat_password)
 
         response = await client.put(
-            f"/api/admin/cats/update/{cat_uuid}",
+            f"/api/admin/cats/update/{cat_to_update.uuid}",
             params={"salary": 10000},
-            headers=auth_headers
+            headers=other_cat_headers
         )
         
         assert response.status_code == 403
@@ -223,13 +229,13 @@ class TestUpdateCatSalary:
     async def test_update_cat_salary_without_auth(
         self,
         client: AsyncClient,
-        test_cat
+        cat_factory
     ):
         """Test that unauthenticated requests are rejected"""
-        cat_uuid = test_cat.uuid
+        cat, password = await cat_factory()
 
         response = await client.put(
-            f"/api/admin/cats/update/{cat_uuid}",
+            f"/api/admin/cats/update/{cat.uuid}",
             params={"salary": 10000},
         )
         
@@ -243,11 +249,11 @@ class TestDeleteCatByUuid:
         self,
         client: AsyncClient,
         admin_headers,
-        test_cat
+        cat_factory
     ):
-        cat_uuid = test_cat.uuid
+        cat, _ = await cat_factory()
         response = await client.delete(
-            f"/api/admin/cats/delete/{cat_uuid}",
+            f"/api/admin/cats/delete/{cat.uuid}",
             headers=admin_headers
         )
 
@@ -269,15 +275,20 @@ class TestDeleteCatByUuid:
     async def test_delete_cat_by_uuid_unauthorized(
         self,
         client: AsyncClient,
-        auth_headers,
-        test_cat
+        cat_factory,
+        auth_headers_factory
     ):
         """Test that non-admin users cannot delete cat by uuid"""
-        cat_uuid = test_cat.uuid
+        cat_to_update, _ = await cat_factory()
+        other_cat, other_cat_password = await cat_factory(
+            name="OtherCat",
+            password="TestPassOther123!"
+        )
+        other_cat_headers = await auth_headers_factory(other_cat.name, other_cat_password)
 
         response = await client.delete(
-            f"/api/admin/cats/delete/{cat_uuid}",
-            headers=auth_headers
+            f"/api/admin/cats/delete/{cat_to_update.uuid}",
+            headers=other_cat_headers
         )
         
         assert response.status_code == 403
@@ -285,13 +296,12 @@ class TestDeleteCatByUuid:
     async def test_delete_cat_by_uuid_without_auth(
         self,
         client: AsyncClient,
-        test_cat
+        cat_factory
     ):
         """Test that unauthenticated requests are rejected"""
-        cat_uuid = test_cat.uuid
-
+        cat, _ = await cat_factory()
         response = await client.delete(
-            f"/api/admin/cats/delete/{cat_uuid}",
+            f"/api/admin/cats/delete/{cat.uuid}",
         )
         
         assert response.status_code == 401
@@ -304,11 +314,11 @@ class TestGetCatByUuid:
         self,
         client: AsyncClient,
         admin_headers,
-        test_cat
+        cat_factory
     ):
-        cat_uuid = test_cat.uuid
+        cat, _ = await cat_factory()
         response = await client.get(
-            f"/api/admin/cats/{cat_uuid}",
+            f"/api/admin/cats/{cat.uuid}",
             headers=admin_headers
         )
 
@@ -330,15 +340,20 @@ class TestGetCatByUuid:
     async def test_get_cat_by_uuid_unauthorized(
         self,
         client: AsyncClient,
-        auth_headers,
-        test_cat
+        cat_factory,
+        auth_headers_factory
     ):
         """Test that non-admin users cannot get cat by uuid"""
-        cat_uuid = test_cat.uuid
+        cat_to_update, _ = await cat_factory()
+        other_cat, other_cat_password = await cat_factory(
+            name="OtherCat",
+            password="TestPassOther123!"
+        )
+        other_cat_headers = await auth_headers_factory(other_cat.name, other_cat_password)
 
         response = await client.get(
-            f"/api/admin/cats/{cat_uuid}",
-            headers=auth_headers
+            f"/api/admin/cats/{cat_to_update.uuid}",
+            headers=other_cat_headers
         )
         
         assert response.status_code == 403
@@ -346,13 +361,13 @@ class TestGetCatByUuid:
     async def test_get_cat_by_uuid_without_auth(
         self,
         client: AsyncClient,
-        test_cat
+        cat_factory
     ):
         """Test that unauthenticated requests are rejected"""
-        cat_uuid = test_cat.uuid
+        cat, _ = await cat_factory()
 
         response = await client.get(
-            f"/api/admin/cats/{cat_uuid}",
+            f"/api/admin/cats/{cat.uuid}",
         )
         
         assert response.status_code == 401
@@ -428,10 +443,11 @@ class TestCreateMission:
         self,
         client: AsyncClient,
         admin_headers,
-        test_cat,
-        mission_factory
+        mission_factory,
+        cat_factory
     ):
-        mission_data = mission_factory(cat_uuids=[str(test_cat.uuid)])
+        cat, _ = await cat_factory()
+        mission_data = mission_factory(cat_uuids=[str(cat.uuid)])
 
         """Test creating mission with assigned cats"""
         response = await client.post(
@@ -836,14 +852,13 @@ class TestDeleteMissionByUuid:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_db_factory,
-        test_cat
+        cat_mission_target_factory
     ):
-        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
-        mission_uuid = mission.uuid
+        test_data = await cat_mission_target_factory()
+        mission = test_data["mission"]
         
         response = await client.delete(
-            f"/api/admin/mission/delete/{mission_uuid}",
+            f"/api/admin/mission/delete/{mission.uuid}",
             headers=admin_headers
         )
         
@@ -893,10 +908,10 @@ class TestCompleteMissionByUuid:
         self,
         client: AsyncClient,
         admin_headers,
-        mission_db_factory,
-        test_cat
+        cat_mission_target_factory
     ):
-        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
+        test_data = await cat_mission_target_factory()
+        mission = test_data["mission"]
         response = await client.put(
             f"/api/admin/mission/{mission.uuid}/complete",
             headers=admin_headers
@@ -930,17 +945,17 @@ class TestCompleteMissionByUuid:
     async def test_complete_mission_by_uuid_unauthorized(
         self,
         client: AsyncClient,
-        auth_headers,
-        mission_db_factory,
-        test_cat
+        cat_mission_target_factory
     ):
         """Test that non-admin users cannot complete mission by uuid"""
         # Create mission in the database
-        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
+        test_data = await cat_mission_target_factory()
+        mission = test_data["mission"]
+        headers = test_data["headers"]
 
         response = await client.put(
             f"/api/admin/mission/{mission.uuid}/complete",
-            headers=auth_headers
+            headers=headers
         )
         
         assert response.status_code == 403
@@ -948,12 +963,12 @@ class TestCompleteMissionByUuid:
     async def test_complete_mission_by_uuid_without_auth(
         self,
         client: AsyncClient,
-        mission_db_factory,
-        test_cat
+        cat_mission_target_factory
     ):
         """Test that unauthenticated requests are rejected"""
         # Create mission in the database
-        mission = await mission_db_factory(cat_uuids=[str(test_cat.uuid)])
+        test_data = await cat_mission_target_factory()
+        mission = test_data["mission"]
 
         response = await client.put(
             f"/api/admin/mission/{mission.uuid}/complete",

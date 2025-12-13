@@ -1,11 +1,15 @@
 import pytest
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
 class TestSignUp:
     "Test suite for sign up endpoint"
 
-    async def test_signup_success(self, client):
+    async def test_signup_success(
+        self, 
+        client: AsyncClient
+    ):
         """Note: async def and await!"""
         response = await client.post("/api/auth/signup", json={
             "name": "NewCat",
@@ -17,7 +21,11 @@ class TestSignUp:
 
 
     @pytest.mark.asyncio
-    async def test_signup_duplicate_name(self, client, test_cat):
+    async def test_signup_duplicate_name(
+        self, 
+        client: AsyncClient, 
+        auth_headers
+    ):
         response = await client.post("/api/auth/signup", json={
             "name": "TestCat",  # Already exists
             "password": "Pass123",
@@ -31,7 +39,11 @@ class TestSignUp:
 class TestLogin:
     "Test suite for login endpoint"
     
-    async def test_login_success(self, client, test_cat):
+    async def test_login_success(
+        self, 
+        client: AsyncClient, 
+        auth_headers
+    ):
         response = await client.post("/api/auth/login", data={
             "username": "TestCat",
             "password": "TestPass123!"
@@ -41,7 +53,11 @@ class TestLogin:
 
 
     @pytest.mark.asyncio
-    async def test_login_wrong_password(self, client, test_cat):
+    async def test_login_wrong_password(
+        self, 
+        client: AsyncClient, 
+        auth_headers
+    ):
         response = await client.post("/api/auth/login", data={
             "username": "TestCat",
             "password": "WrongPass"

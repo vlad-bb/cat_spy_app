@@ -20,8 +20,7 @@ class TestGetMyCat:
     
     async def test_get_my_cat_by_uuid_without_auth(
         self,
-        client: AsyncClient,
-        test_cat
+        client: AsyncClient
     ):
         response = await client.get(
             "/api/cats/me",
@@ -448,14 +447,12 @@ class TestGetNotes:
         test_data = await cat_mission_target_factory(assign_to_target=True, create_note=True)
         headers = test_data["headers"]
         
-        # Act: create note
         response = await client.get(
             "/api/cats/notes",
             headers=headers
         )
 
         assert response.status_code == 200
-        data = response.json()
 
     async def test_get_notes_not_found(
             self,
@@ -477,6 +474,111 @@ class TestGetNotes:
     ):
         response = await client.get(
             "/api/cats/notes"
+        )
+
+        assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestUpdateNote:
+    async def test_update_note_success(
+        self, 
+        client: AsyncClient, 
+        cat_mission_target_factory
+    ):
+        test_data = await cat_mission_target_factory(assign_to_target=True, create_note=True)
+        note = test_data["note"]
+        headers = test_data["headers"]
+        new_content = "Note after update"
+        
+        response = await client.put(
+            f"/api/cats/note/{note.uuid}",
+            json={"content": new_content},
+            headers=headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["content"] == new_content
+
+    async def test_update_note_not_found(
+        self, 
+        client: AsyncClient,
+        auth_headers
+    ):
+        note_uuid = str(uuid4())
+        new_content = "Note after update"
+        
+        response = await client.put(
+            f"/api/cats/note/{note_uuid}",
+            json={"content": new_content},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 404
+
+    async def test_update_note_completed_terget(
+        self, 
+        client: AsyncClient, 
+        cat_mission_target_factory
+    ):
+        test_data = await cat_mission_target_factory(
+            assign_to_target=True, 
+            create_note=True, 
+            target_kwargs={"status": "completed"}
+            )
+        note = test_data["note"]
+        headers = test_data["headers"]
+        new_content = "Note after update"
+        
+        response = await client.put(
+            f"/api/cats/note/{note.uuid}",
+            json={"content": new_content},
+            headers=headers
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert data["detail"] == "Cannot update note for a completed target"
+
+    async def test_update_note_cat_forbidden(
+        self, 
+        client: AsyncClient, 
+        cat_mission_target_factory,
+        auth_headers
+    ):
+        test_data = await cat_mission_target_factory(
+            assign_to_target=True, 
+            create_note=True
+            )
+        note = test_data["note"]
+        new_content = "Note after update"
+        
+        response = await client.put(
+            f"/api/cats/note/{note.uuid}",
+            json={"content": new_content},
+            headers=auth_headers
+        )
+
+        assert response.status_code == 403
+        data = response.json()
+        assert data["detail"] == "Cat is not the author of this note"
+
+    async def test_update_note_without_auth(
+        self, 
+        client: AsyncClient, 
+        cat_mission_target_factory
+    ):
+        test_data = await cat_mission_target_factory(
+            assign_to_target=True, 
+            create_note=True
+            )
+        note = test_data["note"]
+        new_content = "Note after update"
+        
+        response = await client.put(
+            f"/api/cats/note/{note.uuid}",
+            json={"content": new_content},
         )
 
         assert response.status_code == 401
