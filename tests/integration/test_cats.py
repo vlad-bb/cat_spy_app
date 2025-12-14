@@ -274,7 +274,7 @@ class TestGetMyTurgets:
         test_data = await cat_mission_target_factory(assign_to_target=True)
         mission = test_data["mission"]
         cat = test_data["cat"]
-        await target_db_factory(mission=mission, assign_to_target=True, cat=cat)
+        await target_db_factory(mission=mission, assign_cat=cat)
         
         response = await client.get(
             "/api/cats/targets",
@@ -361,11 +361,12 @@ class TestCompleteTurget:
 
 @pytest.mark.asyncio
 class TestCreateNoteForTarget:
+    note_content = "Target spotted near the warehouse at 3 AM. Very suspicious."
+
     async def test_create_note_for_target_success(
         self, 
         client: AsyncClient, 
         cat_mission_target_factory,
-        test_note
     ):
         test_data = await cat_mission_target_factory(assign_to_target=True)
         target = test_data["target"]
@@ -374,27 +375,26 @@ class TestCreateNoteForTarget:
         # Act: create note
         response = await client.post(
             f"/api/cats/target-note/{target.uuid}",
-            json={"content": test_note["content"]},
+            json={"content": self.note_content},
             headers=headers
         )
 
         assert response.status_code == 201
         data = response.json()
         
-        assert data["content"] == test_note["content"]
+        assert data["content"] == self.note_content
         assert data["target_uuid"] == str(target.uuid)
 
     async def test_create_note_target_not_found(
         self,
         client: AsyncClient,
         auth_headers,
-        test_note
     ):
         target_uuid = str(uuid4())
 
         response = await client.post(
             f"/api/cats/target-note/{target_uuid}",
-            json={"content": test_note["content"]},
+            json={"content": self.note_content},
             headers=auth_headers
         )
 
@@ -406,7 +406,6 @@ class TestCreateNoteForTarget:
         self,
         client: AsyncClient,
         auth_headers,
-        test_note,
         cat_mission_target_factory
     ):
         test_data = await cat_mission_target_factory(assign_to_target=True)
@@ -414,7 +413,7 @@ class TestCreateNoteForTarget:
 
         response = await client.post(
             f"/api/cats/target-note/{target.uuid}",
-            json={"content": test_note["content"]},
+            json={"content": self.note_content},
             headers=auth_headers
         )
 
