@@ -97,4 +97,11 @@ class NoteRepository:
             .where(Note.cat_uuid == cat_uuid)
             .options(selectinload(Note.note_cat))
         )
-        return result.scalars().all()
+        notes = result.scalars().all()
+
+        if not notes:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No notes found for this cat"
+            )
+        return notes

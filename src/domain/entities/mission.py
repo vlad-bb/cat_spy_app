@@ -48,7 +48,7 @@ class Mission:
     def complete(self) -> None:
         """Mark mission as completed"""
         if self.status in [MissionStatus.PENDING.value, MissionStatus.CANCELLED.value]:
-            raise ValueError(f"Cannot complete a {self.status.value} mission")
+            raise ValueError(f"Cannot complete a {self.status} mission")
         self.status = MissionStatus.COMPLETED.value
         self.completed_at = datetime.now()
         self.updated_at = datetime.now()

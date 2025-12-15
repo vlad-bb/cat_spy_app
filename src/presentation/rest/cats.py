@@ -3,7 +3,10 @@ from uuid import UUID
 
 from src.infrastructure.database.models.tables import Cat
 from src.infrastructure.database.repositories.cats import (
-    CatRepository,
+    CatRepository
+)
+from src.infrastructure.database.repositories.missions import (
+    MissionRepository
 )
 from src.infrastructure.database.repositories.notes import (
     NoteRepository
@@ -13,10 +16,12 @@ from src.infrastructure.database.repositories.targets import (
 )
 from src.application.auth import get_current_cat
 from src.presentation.schemas.cats import CatProfile
+from src.presentation.schemas.missions import MissionResponse
 from src.presentation.schemas.notes import NoteCreate, NoteResponse
 from src.presentation.schemas.targets import TargetResponse
 from src.presentation.dependencies import (
     get_cat_repository,
+    get_mission_repository,
     get_target_repository,
     get_note_repository,
 )
@@ -39,13 +44,22 @@ async def get_my_cat(
     )
     return my_cat
 
-@router.put("/target/{target_uuid}/assign", status_code=status.HTTP_200_OK)
+@router.get("/missions", response_model=list[MissionResponse])
+async def get_all_missions_for_cat(
+    mission_repository: MissionRepository = Depends(get_mission_repository),
+    current_cat: Cat = Depends(get_current_cat),
+):
+    missions = await mission_repository.get_all_missions_for_cat(current_cat.uuid)
+    return [MissionResponse.from_mission(mission) for mission in missions]
+
+@router.put("/target/{target_uuid}/assign", response_model=TargetResponse, status_code=status.HTTP_200_OK)
 async def assign_cat_to_target(
     target_uuid: UUID,
     target_repository: TargetRepository = Depends(get_target_repository),
     current_cat: Cat = Depends(get_current_cat),
 ):
-    await target_repository.assign_cat_to_target(target_uuid, current_cat.uuid)
+    target = await target_repository.assign_cat_to_target(target_uuid, current_cat.uuid)
+    return target
 
 @router.get("/target/{target_uuid}", response_model=TargetResponse)
 async def get_target_by_uuid(

@@ -42,7 +42,12 @@ class MissionRepository:
             for cat in cats:
                 # Check if cat has any missions assigned
                 mission_check = await self.db.execute(
-                    select(mission_cats).where(mission_cats.c.cat_uuid == cat.uuid)
+                    select(mission_cats)
+                    .join(Mission, mission_cats.c.mission_uuid == Mission.uuid)
+                    .where(
+                        (mission_cats.c.cat_uuid == cat.uuid) &
+                        (Mission.status == MissionStatus.IN_PROGRESS.value)
+                    )
                 )
                 if mission_check.first():
                     cats_with_missions.append(cat.uuid)
@@ -146,8 +151,8 @@ class MissionRepository:
         mission.updated_at = domain_mission.updated_at
         mission.completed_at = domain_mission.completed_at
         await self.db.commit()
-        await self.db.refresh(mission)
-        return mission
+        return await self.get_by_uuid(mission_uuid)
+
 
     async def assign_cats_to_mission(self, mission_uuid: UUID, cat_uuids: List[UUID]) -> Mission:
         mission = await self.get_by_uuid(mission_uuid)
@@ -175,12 +180,33 @@ class MissionRepository:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Cats not found: {missing_uuids}"
             )
+
+        # Check if any cat is already assigned to a mission
+        cats_with_missions = []
+        for cat in cats:
+            # Check if cat has any missions assigned
+            mission_check = await self.db.execute(
+                select(mission_cats)
+                .join(Mission, mission_cats.c.mission_uuid == Mission.uuid)
+                .where(
+                    (mission_cats.c.cat_uuid == cat.uuid) &
+                    (Mission.status == MissionStatus.IN_PROGRESS.value)
+                )
+            )
+
+            if mission_check.first():
+                cats_with_missions.append(cat.uuid)
+
+        if cats_with_missions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cats with UUID {cats_with_missions[0]} are already assigned to missions. Each cat can only have one mission."
+            )             
         
         mission.cat.extend(cats)
         mission.status = MissionStatus.IN_PROGRESS.value
         await self.db.commit()
-        await self.db.refresh(mission)
-        return mission
+        return await self.get_by_uuid(mission_uuid)
 
     async def set_completed_target(self, target_uuid: UUID) -> Target:
         result = await self.db.execute(
@@ -196,3 +222,23 @@ class MissionRepository:
         await self.db.commit()
         await self.db.refresh(target)
         return target
+
+    async def get_all_missions_for_cat(self, cat_uuid: UUID) -> list[Mission]:
+        result = await self.db.execute(
+            select(Mission)
+            .join(mission_cats, Mission.uuid == mission_cats.c.mission_uuid)
+            .where(mission_cats.c.cat_uuid == cat_uuid)
+            .options(
+                selectinload(Mission.mission_target),
+                selectinload(Mission.cat)
+            )
+        )
+
+        missions = result.scalars().all()
+
+        if not missions:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No missions found for this cat"
+            )
+        return missions

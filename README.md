@@ -123,6 +123,22 @@ To access protected endpoints:
 
 The project uses environment variables for configuration. Make sure to set up the required environment variables before running the application. 
 
+## Testing
+
+Run test for all project (in Docker bash):
+```
+uv run pytest
+```
+Run test for specific file::endpoint::case:
+```
+uv run pytest tests/integration/test_admin.py::TestUpdateCatSalary::test_update_cat_salary_success
+```
+
+Check test coverage for all project by running:
+```
+pytest --cov=src tests/ --cov-report=term-missing
+```
+
 ---
 
 For more detailed information about specific endpoints, request/response schemas, and their usage, please refer to the interactive documentation at `http://localhost:8000/docs`.

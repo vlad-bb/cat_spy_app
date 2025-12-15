@@ -6,6 +6,8 @@ from uuid import UUID
 from src.domain.entities.target import TargetStatus
 from src.domain.entities.mission import MissionStatus
 from src.infrastructure.database.models.tables import Target, Mission, mission_cats, targets_cats, Cat
+from src.infrastructure.database.repositories.missions import MissionRepository
+# from src.presentation.dependencies import get_mission_repository
 
 
 class TargetRepository:
@@ -13,18 +15,53 @@ class TargetRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def assign_cat_to_target(self, target_uuid: UUID, cat_uuid: UUID) -> None:
-        await self.db.execute(
-            targets_cats.insert().values(target_uuid=target_uuid, cat_uuid=cat_uuid)
-        )
-        # Set target status to "active" when a cat is assigned
+    async def assign_cat_to_target(self, target_uuid: UUID, cat_uuid: UUID) -> Target:
         result = await self.db.execute(
             select(Target).where(Target.uuid == target_uuid)
         )
         target = result.scalar_one_or_none()
-        if target:
+
+        if not target:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Target not found"
+                    )
+
+        mission_repository = MissionRepository(self.db)
+        cat_missions = await mission_repository.get_all_missions_for_cat(cat_uuid=cat_uuid)
+        cat_missions_uuids = [m.uuid for m in cat_missions]
+        if target.mission_uuid not in cat_missions_uuids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot assign cat to target: cat is not assigned to the target's mission."
+            )
+
+        # Define which statuses allow cat assignment
+        ALLOWED_STATUSES_FOR_ASSIGNMENT = [
+            TargetStatus.ACTIVE.value,
+            TargetStatus.PENDING.value
+        ]
+        
+        if target.status not in ALLOWED_STATUSES_FOR_ASSIGNMENT:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot assign cat to target with status '{target.status}'. "
+                    f"Target must be one of: {', '.join(ALLOWED_STATUSES_FOR_ASSIGNMENT)}"
+            )
+        
+        # Assign cat to target
+        await self.db.execute(
+            targets_cats.insert().values(target_uuid=target_uuid, cat_uuid=cat_uuid)
+        )
+        
+        # If target was pending, set it to active
+        if target.status == TargetStatus.PENDING.value:
             target.status = TargetStatus.ACTIVE.value
+            
         await self.db.commit()
+        await self.db.refresh(target)
+
+        return target
 
     async def get_target_by_uuid(self, target_uuid: UUID, cat_uuid: UUID) -> Target:
         result = await self.db.execute(
@@ -60,12 +97,15 @@ class TargetRepository:
             .join(targets_cats, Target.uuid == targets_cats.c.target_uuid)
             .where(targets_cats.c.cat_uuid == cat_uuid)
         )
-        if not result:
+        targets = result.scalars().all()
+
+        if not targets:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="No targets found for this cat"
             )
-        return result.scalars().all()
+
+        return targets
 
     async def set_completed_target(self, target_uuid: UUID, current_cat: Cat) -> Target:
         target_result = await self.db.execute(
