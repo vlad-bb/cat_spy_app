@@ -21,6 +21,12 @@ class TargetRepository:
         )
         target = result.scalar_one_or_none()
 
+        if not target:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Target not found"
+                    )
+
         mission_repository = MissionRepository(self.db)
         cat_missions = await mission_repository.get_all_missions_for_cat(cat_uuid=cat_uuid)
         cat_missions_uuids = [m.uuid for m in cat_missions]
@@ -30,12 +36,6 @@ class TargetRepository:
                 detail="Cannot assign cat to target: cat is not assigned to the target's mission."
             )
 
-        if not target:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Target not found"
-            )
-    
         # Define which statuses allow cat assignment
         ALLOWED_STATUSES_FOR_ASSIGNMENT = [
             TargetStatus.ACTIVE.value,

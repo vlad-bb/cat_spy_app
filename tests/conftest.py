@@ -182,10 +182,6 @@ async def mission_db_factory(db_session: AsyncSession, mission_factory):
         repository = MissionRepository(db_session)
         mission = await repository.create(mission_create)
         
-        db_session.add(mission)
-        await db_session.commit()
-        await db_session.refresh(mission)
-
         return mission
     
     return _factory

@@ -97,7 +97,7 @@ class TestAssignCatToTarget:
         nonexistent_target_uuid = uuid4()
         
         response = await client.put(
-            f"/api/targets/{nonexistent_target_uuid}/assign",
+            f"/api/cats/target/{nonexistent_target_uuid}/assign",
             headers=auth_headers
         )
         
