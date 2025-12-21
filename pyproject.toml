@@ -3,7 +3,7 @@ name = "cat-spy-app"
 version = "0.1.0"
 description = "App for Cat Spy Agency"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "aiosqlite>=0.21.0",
     "alembic>=1.16.5",
@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.118.0",
     "greenlet>=3.2.4",
     "httpx>=0.28.1",
+    "mcp>=1.25.0",
     "passlib>=1.7.4",
     "pydantic-settings>=2.11.0",
     "pydantic[email]>=2.11.9",
