@@ -24,7 +24,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Database connection
-DATABASE_URL = os.getenv("DATABASE_URL", "").replace("postgresql://", "postgresql+asyncpg://")
+DATABASE_USER = os.getenv("DATABASE_USER", "postgres")
+DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD", "")
+DATABASE_HOST = os.getenv("DATABASE_HOST", "localhost")
+DATABASE_PORT = os.getenv("DATABASE_PORT", "5432")
+DATABASE_NAME = os.getenv("DATABASE_NAME", "cat_spy_app")
+
+DATABASE_URL = f"postgresql+asyncpg://{DATABASE_USER}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}"
+logger.info(f"DATABASE URL {DATABASE_URL}")
+# DATABASE_URL = os.getenv("DATABASE_URL", "").replace("postgresql://", "postgresql+asyncpg://")
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

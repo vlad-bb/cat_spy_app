@@ -31,17 +31,17 @@ def get_tool_definitions() -> list[Tool]:
         ),
         Tool(
             name="query_missions",
-            description="Query missions from the database. Returns list of missions with targets.",
+            description="Query missions from the database. Returns list of missions with their details.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "cat_id": {
-                        "type": "integer",
-                        "description": "Optional: Filter missions assigned to specific cat"
+                    "cat_uuid": {
+                        "type": "string",
+                        "description": "Optional: Filter missions assigned to specific cat (UUID)"
                     },
-                    "is_completed": {
-                        "type": "boolean",
-                        "description": "Optional: Filter by completion status"
+                    "status": {
+                        "type": "string",
+                        "description": "Optional: Filter by status (pending, in_progress, completed, etc.)"
                     },
                     "limit": {
                         "type": "integer",
@@ -57,17 +57,33 @@ def get_tool_definitions() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "cat_id": {
-                        "type": "integer",
-                        "description": "The ID of the cat"
+                    "cat_uuid": {
+                        "type": "string",
+                        "description": "The UUID of the cat"
                     }
                 },
-                "required": ["cat_id"]
+                "required": ["cat_uuid"]
             }
         ),
         Tool(
             name="execute_raw_query",
-            description="Execute a raw SQL SELECT query. Use with caution. Only SELECT queries are allowed.",
+            description="""Execute a raw SQL SELECT query. Use with caution. Only SELECT queries are allowed.
+            
+Database Schema:
+- Table: cats
+  Columns: uuid (UUID, PK), name, password, refresh_token, reset_token, years_of_experience, breed, salary, created_at, updated_at, is_staff
+- Table: missions
+  Columns: uuid (UUID, PK), name, description, status, created_at, updated_at, completed_at
+- Table: targets
+  Columns: uuid (UUID, PK), name, country, status, mission_uuid (FK), created_at, updated_at
+- Table: mission_cats (many-to-many)
+  Columns: mission_uuid, cat_uuid
+- Table: targets_cats (many-to-many)
+  Columns: target_uuid, cat_uuid
+- Table: notes
+  Columns: uuid (UUID, PK), content, cat_uuid (FK), target_uuid (FK), created_at, updated_at
+
+Example: SELECT * FROM cats WHERE years_of_experience > 3""",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -88,7 +104,7 @@ async def query_cats(session: AsyncSession, args: dict) -> list[TextContent]:
     breed_filter = args.get("breed", "")
     limit = args.get("limit", 10)
     
-    query = "SELECT id, name, years_of_experience, breed, salary FROM cats WHERE 1=1"
+    query = "SELECT uuid, name, years_of_experience, breed, salary FROM cats WHERE 1=1"
     params = {}
     
     if name_filter:
@@ -111,7 +127,7 @@ async def query_cats(session: AsyncSession, args: dict) -> list[TextContent]:
     cats_data = []
     for row in rows:
         cats_data.append({
-            "id": row[0],
+            "uuid": str(row[0]),
             "name": row[1],
             "years_of_experience": row[2],
             "breed": row[3],
@@ -126,32 +142,32 @@ async def query_cats(session: AsyncSession, args: dict) -> list[TextContent]:
 
 async def query_missions(session: AsyncSession, args: dict) -> list[TextContent]:
     """Query missions from database."""
-    cat_id = args.get("cat_id")
-    is_completed = args.get("is_completed")
+    cat_uuid = args.get("cat_uuid")
+    status = args.get("status")
     limit = args.get("limit", 10)
     
     query = """
-        SELECT m.id, m.is_completed, COUNT(t.id) as target_count
+        SELECT m.uuid, m.name, m.description, m.status, m.completed_at, COUNT(t.uuid) as target_count
         FROM missions m
-        LEFT JOIN targets t ON m.id = t.mission_id
+        LEFT JOIN targets t ON m.uuid = t.mission_uuid
     """
     
     conditions = []
     params = {}
     
-    if cat_id is not None:
-        query += " LEFT JOIN cat_missions cm ON m.id = cm.mission_id"
-        conditions.append("cm.cat_id = :cat_id")
-        params["cat_id"] = cat_id
+    if cat_uuid is not None:
+        query += " LEFT JOIN mission_cats mc ON m.uuid = mc.mission_uuid"
+        conditions.append("mc.cat_uuid = :cat_uuid::uuid")
+        params["cat_uuid"] = cat_uuid
     
-    if is_completed is not None:
-        conditions.append("m.is_completed = :is_completed")
-        params["is_completed"] = is_completed
+    if status is not None:
+        conditions.append("m.status = :status")
+        params["status"] = status
     
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
     
-    query += " GROUP BY m.id LIMIT :limit"
+    query += " GROUP BY m.uuid LIMIT :limit"
     params["limit"] = limit
     
     result = await session.execute(text(query), params)
@@ -163,9 +179,12 @@ async def query_missions(session: AsyncSession, args: dict) -> list[TextContent]
     missions_data = []
     for row in rows:
         missions_data.append({
-            "id": row[0],
-            "is_completed": row[1],
-            "target_count": row[2]
+            "uuid": str(row[0]),
+            "name": row[1],
+            "description": row[2],
+            "status": row[3],
+            "completed_at": str(row[4]) if row[4] else None,
+            "target_count": row[5]
         })
     
     return [TextContent(
@@ -176,26 +195,26 @@ async def query_missions(session: AsyncSession, args: dict) -> list[TextContent]
 
 async def get_cat_stats(session: AsyncSession, args: dict) -> list[TextContent]:
     """Get statistics for a specific cat."""
-    cat_id = args["cat_id"]
+    cat_uuid = args["cat_uuid"]
     
     # Get cat info
-    cat_query = "SELECT name, breed, years_of_experience FROM cats WHERE id = :cat_id"
-    cat_result = await session.execute(text(cat_query), {"cat_id": cat_id})
+    cat_query = "SELECT name, breed, years_of_experience FROM cats WHERE uuid = :cat_uuid::uuid"
+    cat_result = await session.execute(text(cat_query), {"cat_uuid": cat_uuid})
     cat_row = cat_result.fetchone()
     
     if not cat_row:
-        return [TextContent(type="text", text=f"Cat with ID {cat_id} not found.")]
+        return [TextContent(type="text", text=f"Cat with UUID {cat_uuid} not found.")]
     
     # Get mission stats
     stats_query = """
         SELECT 
             COUNT(*) as total_missions,
-            SUM(CASE WHEN m.is_completed THEN 1 ELSE 0 END) as completed_missions
-        FROM cat_missions cm
-        JOIN missions m ON cm.mission_id = m.id
-        WHERE cm.cat_id = :cat_id
+            SUM(CASE WHEN m.status = 'completed' THEN 1 ELSE 0 END) as completed_missions
+        FROM mission_cats mc
+        JOIN missions m ON mc.mission_uuid = m.uuid
+        WHERE mc.cat_uuid = :cat_uuid::uuid
     """
-    stats_result = await session.execute(text(stats_query), {"cat_id": cat_id})
+    stats_result = await session.execute(text(stats_query), {"cat_uuid": cat_uuid})
     stats_row = stats_result.fetchone()
     
     total_missions = stats_row[0] if stats_row else 0
@@ -236,7 +255,12 @@ async def execute_raw_query(session: AsyncSession, args: dict) -> list[TextConte
     column_names = result.keys()
     results = []
     for row in rows:
-        results.append(dict(zip(column_names, row)))
+        row_dict = dict(zip(column_names, row))
+        # Convert UUIDs to strings for display
+        for key, value in row_dict.items():
+            if hasattr(value, 'hex'):  # Check if it's a UUID
+                row_dict[key] = str(value)
+        results.append(row_dict)
     
     return [TextContent(
         type="text",
