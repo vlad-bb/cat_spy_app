@@ -12,7 +12,7 @@ class MissionRepository(ABC):
         pass
     
     @abstractmethod
-    def find_by_id(self, mission_uuid: UUID) -> Optional[Mission]:
+    def find_by_uuid(self, mission_uuid: UUID) -> Optional[Mission]:
         pass
     
     @abstractmethod

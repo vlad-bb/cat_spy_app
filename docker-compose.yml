@@ -45,7 +45,7 @@ services:
     build: .
     command: uv run python mcp_server/server.py
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:12345678@db:5432/cat_spy_app
+      DATABASE_URL: postgresql+asyncpg://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
     depends_on:
       - db
     networks:

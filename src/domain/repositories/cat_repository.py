@@ -12,7 +12,7 @@ class CatRepository(ABC):
         pass
     
     @abstractmethod
-    def find_by_id(self, cat_id: UUID) -> Optional[Cat]:
+    def find_by_uuid(self, cat_uuid: UUID) -> Optional[Cat]:
         pass
     
     @abstractmethod
