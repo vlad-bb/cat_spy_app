@@ -52,8 +52,6 @@ services:
       - app-network
     stdin_open: true
     tty: true
-    profiles:
-      - mcp
   
 networks:
   app-network:

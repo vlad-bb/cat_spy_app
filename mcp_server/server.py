@@ -6,7 +6,6 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
 
 from tools import (
     get_tool_definitions,
