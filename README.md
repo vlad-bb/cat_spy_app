@@ -1,6 +1,7 @@
 # Cat Spy API
 
 A FastAPI-based application build for Spy Cat Agency for managing cats and their missions with admin capabilities.
+This system now includes Model Context Protocol (MCP) integration, currently enabling intelligent database interactions for streamlined cat and mission oversight with future expansion. 
 
 ## Prerequisites
 
@@ -15,7 +16,7 @@ Before running this project, ensure you have the following installed:
   # or via pip
   pip install uv
   ```
-- Make copy of .env.exemple file, rename it to `.env` and fill it with your credentials.
+- Make copy of `.env.exemple` file, rename it to `.env` and fill it with your credentials.
 
 
 ## Quick Start
@@ -64,43 +65,51 @@ Once the application is running, you can test all endpoints through the interact
 
 #### Cats Endpoints (`/cats`)
 
-- **GET /cats/me** - Get current cat's profile information
+- **GET /me** - Get current cat's profile information
 
-- **PUT /cats/target/complete/{target_id}** - Mark a target as completed
+- **GET /missions** - Get all missions for current cat
 
-- **POST /cats/target/{target_id}** - Create a note for a specific target
+- **PUT /target/{target_uuid}/assign** - Assign a target to the current cat
 
-- **GET /cats/notes** - Get all notes for the current cat
+- GET /target/{target_uuid} - Get details of a specific target
 
-- **PUT /cats/note/{note_id}** - Update a specific note
+- **GET /targets** - Get all targets assigned to the current cat
+
+- **PUT /target/complete/{target_uuid}** - Mark a target as completed
+
+- **POST /target-note/{target_uuid}** - Create a note for a specific target
+
+- **GET /notes** - Get all notes for the current cat
+
+- **PUT /note/{note_uuid}** - Update a specific note
 
 #### Admin Endpoints (`/admin`)
 
 **Cat Management:**
 
-- **GET /admin/cats** - Get all cats in the system (Admin access required)
+- **GET /cats** - Get all cats in the system (Admin access required)
 
-- **GET /admin/cats/name** - Get cats by name search (Admin access required)
+- **GET /cats/name** - Get cats by name search (Admin access required)
 
-- **GET /admin/cats/{cat_id}** - Get a cat by its ID (Admin access required)
+- **GET /cats/{cat_uuid}** - Get a cat by its uuid (Admin access required)
 
-- **PUT /admin/cats/update/{cat_id}** - Update a cat's salary (Admin access required)
+- **PUT /cats/update/{cat_uuid}** - Update a cat's salary (Admin access required)
 
-- **DELETE /admin/cats/delete/{cat_id}** - Delete a cat by its ID (Admin access required)
+- **DELETE /cats/delete/{cat_uuid}** - Delete a cat by its uuid (Admin access required)
 
 **Mission Management:**
 
-- **POST /admin/mission/create** - Create a new mission (Admin access required)
+- **POST /mission/create** - Create a new mission (Admin access required)
 
-- **GET /admin/missions** - Get all missions in the system (Admin access required)
+- **GET /missions** - Get all missions in the system (Admin access required)
 
-- **GET /admin/mission/{mission_id}** - Get a mission by its ID (Admin access required)
+- **GET /mission/{mission_uuid}** - Get a mission by its uuid (Admin access required)
 
-- **PUT /admin/mission/complete/{mission_id}** - Mark a mission as completed (Admin access required)
+- **PUT /mission/{mission_uuid}/complete** - Mark a mission as completed (Admin access required)
 
-- **PUT /admin/mission/assign/{mission_id}** - Assign cats to a mission (Admin access required)
+- **PUT /mission/{mission_uuid}/assign** - Assign cats to a mission (Admin access required)
 
-- **DELETE /admin/mission/delete/{mission_id}** - Delete a mission by its ID (Admin access required)
+- **DELETE /mission/delete/{mission_uuid}** - Delete a mission by its uuid (Admin access required)
 
 ## Development
 
