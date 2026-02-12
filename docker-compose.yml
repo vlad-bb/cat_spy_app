@@ -41,6 +41,17 @@ services:
     networks:
       - app-network
 
+  mcp-server:
+    build: .
+    command: uv run python mcp_server/server.py
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+    depends_on:
+      - db
+    networks:
+      - app-network
+    stdin_open: true
+    tty: true
   
 networks:
   app-network:
