@@ -30,6 +30,7 @@ class Auth:
     SECRET_KEY = config.SECRET_KEY
     ALGORITHM = config.ALGORITHM
     oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+    
 
     def _get_current_time(self):
         """Get current UTC time"""
